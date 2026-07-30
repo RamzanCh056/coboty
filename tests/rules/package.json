@@ -1,0 +1,13 @@
+{
+  "name": "cobotty-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.4.0",
+    "vitest": "^3.0.8"
+  }
+}

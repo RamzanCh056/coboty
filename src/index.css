@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* type scale: size / line-height pairs, weights 400 & 500 only */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.25rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.375rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 2.75rem;
+  --text-4xl--line-height: 3rem;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.875rem;
+  --radius-card-lg: 1rem;
+
+  /* base surfaces */
+  --color-page: var(--cb-page);
+  --color-surface: var(--cb-surface);
+  --color-surface-raised: var(--cb-surface-raised);
+  --color-border: var(--cb-border);
+  --color-border-strong: var(--cb-border-strong);
+
+  --color-text-primary: var(--cb-text-primary);
+  --color-text-secondary: var(--cb-text-secondary);
+  --color-text-tertiary: var(--cb-text-tertiary);
+  --color-text-inverse: var(--cb-text-inverse);
+
+  --color-accent: var(--cb-accent);
+  --color-accent-hover: var(--cb-accent-hover);
+  --color-focus-ring: var(--cb-focus-ring);
+
+  /* status colors */
+  --color-status-new-bg: var(--cb-status-new-bg);
+  --color-status-new-text: var(--cb-status-new-text);
+  --color-status-assigned-bg: var(--cb-status-assigned-bg);
+  --color-status-assigned-text: var(--cb-status-assigned-text);
+  --color-status-opened-bg: var(--cb-status-opened-bg);
+  --color-status-opened-text: var(--cb-status-opened-text);
+  --color-status-solved-bg: var(--cb-status-solved-bg);
+  --color-status-solved-text: var(--cb-status-solved-text);
+  --color-status-stuck-bg: var(--cb-status-stuck-bg);
+  --color-status-stuck-text: var(--cb-status-stuck-text);
+  --color-status-calling-bg: var(--cb-status-calling-bg);
+  --color-status-calling-text: var(--cb-status-calling-text);
+
+  /* department pastels */
+  --color-dept-repair-bg: var(--cb-dept-repair-bg);
+  --color-dept-repair-text: var(--cb-dept-repair-text);
+  --color-dept-finance-bg: var(--cb-dept-finance-bg);
+  --color-dept-finance-text: var(--cb-dept-finance-text);
+  --color-dept-sales-bg: var(--cb-dept-sales-bg);
+  --color-dept-sales-text: var(--cb-dept-sales-text);
+  --color-dept-logistics-bg: var(--cb-dept-logistics-bg);
+  --color-dept-logistics-text: var(--cb-dept-logistics-text);
+
+  --color-warning: var(--cb-warning);
+  --color-warning-bg: var(--cb-warning-bg);
+  --color-warning-text: var(--cb-warning-text);
+
+  --color-success: var(--cb-success);
+  --color-danger: var(--cb-danger);
+}
+
+:root {
+  --cb-page: #f7f7f8;
+  --cb-surface: #ffffff;
+  --cb-surface-raised: #ffffff;
+  --cb-border: #e7e7ea;
+  --cb-border-strong: #d5d5da;
+
+  --cb-text-primary: #18181b;
+  --cb-text-secondary: #6b6b74;
+  --cb-text-tertiary: #9a9aa2;
+  --cb-text-inverse: #ffffff;
+
+  --cb-accent: #18181b;
+  --cb-accent-hover: #303034;
+  --cb-focus-ring: #2563eb;
+
+  --cb-status-new-bg: #e0eafe;
+  --cb-status-new-text: #1d4ed8;
+  --cb-status-assigned-bg: #fef1c7;
+  --cb-status-assigned-text: #8a5b0a;
+  --cb-status-opened-bg: #ddf6e3;
+  --cb-status-opened-text: #15803d;
+  --cb-status-solved-bg: #cbeee0;
+  --cb-status-solved-text: #0b6b4f;
+  --cb-status-stuck-bg: #fde3e1;
+  --cb-status-stuck-text: #b3401f;
+  --cb-status-calling-bg: #e4ddfb;
+  --cb-status-calling-text: #5b3fbf;
+
+  --cb-dept-repair-bg: #ffe4e0;
+  --cb-dept-repair-text: #b0472f;
+  --cb-dept-finance-bg: #d7f4ee;
+  --cb-dept-finance-text: #0f6b5c;
+  --cb-dept-sales-bg: #ede3fb;
+  --cb-dept-sales-text: #6a3fbf;
+  --cb-dept-logistics-bg: #fbedd2;
+  --cb-dept-logistics-text: #8a5c0a;
+
+  --cb-warning: #b3401f;
+  --cb-warning-bg: #fde3e1;
+  --cb-warning-text: #b3401f;
+
+  --cb-success: #15803d;
+  --cb-danger: #b3401f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cb-page: #101012;
+    --cb-surface: #18181b;
+    --cb-surface-raised: #1e1e22;
+    --cb-border: #2a2a2f;
+    --cb-border-strong: #38383f;
+
+    --cb-text-primary: #f2f2f4;
+    --cb-text-secondary: #a3a3ab;
+    --cb-text-tertiary: #6f6f78;
+    --cb-text-inverse: #18181b;
+
+    --cb-accent: #f2f2f4;
+    --cb-accent-hover: #d8d8dc;
+    --cb-focus-ring: #60a5fa;
+
+    --cb-status-new-bg: #16273f;
+    --cb-status-new-text: #7fb0ff;
+    --cb-status-assigned-bg: #3a2c0e;
+    --cb-status-assigned-text: #f0c26b;
+    --cb-status-opened-bg: #123420;
+    --cb-status-opened-text: #6fdb97;
+    --cb-status-solved-bg: #0e3327;
+    --cb-status-solved-text: #5fd0ac;
+    --cb-status-stuck-bg: #3c1c15;
+    --cb-status-stuck-text: #ff9c7f;
+    --cb-status-calling-bg: #251c3f;
+    --cb-status-calling-text: #b7a3f5;
+
+    --cb-dept-repair-bg: #3a1f18;
+    --cb-dept-repair-text: #ff9d84;
+    --cb-dept-finance-bg: #0f2f2a;
+    --cb-dept-finance-text: #5fd4bf;
+    --cb-dept-sales-bg: #271c3d;
+    --cb-dept-sales-text: #c4a8ff;
+    --cb-dept-logistics-bg: #362a0e;
+    --cb-dept-logistics-text: #f0c26b;
+
+    --cb-warning: #ff9c7f;
+    --cb-warning-bg: #3c1c15;
+    --cb-warning-text: #ff9c7f;
+
+    --cb-success: #6fdb97;
+    --cb-danger: #ff9c7f;
+  }
+}
+
+* {
+  border-color: var(--cb-border);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--cb-page);
+  color: var(--cb-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--cb-focus-ring);
+  color: white;
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--cb-focus-ring);
+  outline-offset: 2px;
+}
+
+@keyframes modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes timeline-pulse {
+  0% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes loading-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+  }
+}

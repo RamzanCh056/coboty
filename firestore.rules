@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function claimTenant() {
+      return request.auth.token.tenantId;
+    }
+
+    function claimRole() {
+      return request.auth.token.role;
+    }
+
+    function sameTenant(tenantId) {
+      return signedIn() && claimTenant() == tenantId;
+    }
+
+    function isManagerOrAdmin() {
+      return claimRole() in ['manager', 'admin'];
+    }
+
+    function isStaffReader() {
+      return claimRole() in ['admin', 'manager', 'agent', 'readonly'];
+    }
+
+    // Public sanitized tracking projection — get/listen by displayId only, never list/write.
+    match /publicTracking/{displayId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if sameTenant(tenantId) && isStaffReader();
+      allow write: if false;
+
+      match /departments/{departmentId} {
+        allow read: if sameTenant(tenantId) && isStaffReader();
+        allow write: if false;
+      }
+
+      match /users/{userId} {
+        allow read: if sameTenant(tenantId) && isStaffReader();
+        allow write: if false;
+      }
+
+      match /tickets/{ticketId} {
+        allow read: if sameTenant(tenantId) && isStaffReader();
+        allow write: if false;
+
+        match /history/{eventId} {
+          allow read: if sameTenant(tenantId) && isStaffReader();
+          allow write: if false;
+        }
+
+        match /notifications/{notificationId} {
+          allow read: if sameTenant(tenantId) && isManagerOrAdmin();
+          allow write: if false;
+        }
+      }
+
+      match /billingEvents/{eventId} {
+        allow read: if sameTenant(tenantId) && isManagerOrAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
