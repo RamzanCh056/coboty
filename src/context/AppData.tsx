@@ -25,8 +25,10 @@ import {
   callLoginStaffFromFirestore,
   callLogoutStaffSession,
   callReassignTicket,
+  callRunUnopenedSlaCheck,
   callSubmitTicket,
   callTakeoverTicket,
+  callUpdateUnopenedSla,
   subscribeDepartments,
   subscribeTickets,
   subscribeTenant,
@@ -37,6 +39,7 @@ import type {
   CustomerAccount,
   CustomerTicketSummary,
   Department,
+  ManagerAlert,
   StaffUser,
   TakeoverReason,
   Tenant,
@@ -64,6 +67,7 @@ interface AppDataContextValue {
   departments: Department[]
   staff: StaffUser[]
   tickets: Ticket[]
+  managerAlerts: ManagerAlert[]
   history: TicketHistoryEntry[]
   login: (email: string, password: string) => Promise<StaffUser>
   loginCustomer: (email: string, password: string) => Promise<CustomerAccount>
@@ -90,6 +94,8 @@ interface AppDataContextValue {
   ) => Promise<void>
   takeoverTicket: (ticketId: string, reason: TakeoverReason, note?: string) => Promise<string>
   reassignTicket: (ticketId: string, assigneeId: string) => Promise<void>
+  updateUnopenedSla: (hours: number) => Promise<void>
+  runUnopenedSlaCheck: () => Promise<{ forwarded: number; warned: number; slaHours: number }>
   historyForTicket: (ticketId: string) => TicketHistoryEntry[]
   setTicketHistory: (ticketId: string, entries: TicketHistoryEntry[]) => void
   loadTicketHistory: (ticketId: string) => Promise<void>
@@ -142,6 +148,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [staff, setStaff] = useState<StaffUser[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [managerAlerts, setManagerAlerts] = useState<ManagerAlert[]>([])
   const [historyByTicket, setHistoryByTicket] = useState<Record<string, TicketHistoryEntry[]>>({})
   const usingFirestoreStaff = useRef(false)
 
@@ -152,6 +159,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       departments: Department[]
       staff: StaffUser[]
       tickets: Ticket[]
+      managerAlerts?: ManagerAlert[]
     }) => {
       setCustomerAccount(null)
       setCurrentUser(workspace.profile)
@@ -161,6 +169,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setDepartments(workspace.departments)
       setStaff(workspace.staff)
       setTickets(workspace.tickets)
+      setManagerAlerts(workspace.managerAlerts ?? [])
       hydrateCatalog({
         tenant: workspace.tenant,
         departments: workspace.departments,
@@ -283,6 +292,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setDepartments([])
         setStaff([])
         setTickets([])
+        setManagerAlerts([])
         if (!customerAccount) setCurrentUser(null)
       }
       return
@@ -398,6 +408,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setDepartments([])
     setStaff([])
     setTickets([])
+    setManagerAlerts([])
   }, [staffSessionId])
 
   const listMyTickets = useCallback(async () => {
@@ -453,6 +464,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [currentTenantId, staffSessionId, refreshStaffWorkspace],
   )
 
+  const updateUnopenedSla = useCallback(
+    async (hours: number) => {
+      if (!currentTenantId) throw new Error('Not signed in to a tenant.')
+      const result = await callUpdateUnopenedSla({
+        tenantId: currentTenantId,
+        hours,
+        sessionId: staffSessionId ?? undefined,
+      })
+      setCurrentTenant((prev) =>
+        prev
+          ? {
+              ...prev,
+              config: { ...prev.config, unopenedSlaHours: result.hours },
+              configJson: { ...(prev.configJson ?? prev.config), unopenedSlaHours: result.hours },
+            }
+          : prev,
+      )
+    },
+    [currentTenantId, staffSessionId],
+  )
+
+  const runUnopenedSlaCheck = useCallback(async () => {
+    const result = await callRunUnopenedSlaCheck({
+      sessionId: staffSessionId ?? undefined,
+    })
+    await refreshStaffWorkspace()
+    return {
+      forwarded: result.forwarded,
+      warned: result.warned,
+      slaHours: result.slaHours,
+    }
+  }, [staffSessionId, refreshStaffWorkspace])
+
   const reassignTicket = useCallback(
     async (ticketId: string, assigneeId: string) => {
       if (!currentTenantId) throw new Error('Not signed in to a tenant.')
@@ -503,6 +547,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       departments,
       staff,
       tickets,
+      managerAlerts,
       history,
       login,
       loginCustomer,
@@ -514,6 +559,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       assignTicket,
       takeoverTicket,
       reassignTicket,
+      updateUnopenedSla,
+      runUnopenedSlaCheck,
       historyForTicket,
       setTicketHistory,
       loadTicketHistory,
@@ -531,6 +578,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       departments,
       staff,
       tickets,
+      managerAlerts,
       history,
       login,
       loginCustomer,
@@ -542,6 +590,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       assignTicket,
       takeoverTicket,
       reassignTicket,
+      updateUnopenedSla,
+      runUnopenedSlaCheck,
       historyForTicket,
       setTicketHistory,
       loadTicketHistory,

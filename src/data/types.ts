@@ -10,6 +10,8 @@ export interface TenantConfig {
   primaryColor: string
   logoInitial: string
   ticketPrefix: string
+  /** Hours an assigned ticket may sit unopened before auto-forward. Default 3. */
+  unopenedSlaHours?: number
 }
 
 export interface Tenant {
@@ -57,11 +59,27 @@ export interface Ticket {
   departmentId: string
   status: TicketStatus
   assignedTo: string | null
+  assignedAt?: string | null
+  lastUnopenedSlaAt?: string | null
   priority: TicketPriority
   createdAt: string
   updatedAt: string
   isStuck: boolean
   stuckSinceHours: number | null
+}
+
+export interface ManagerAlert {
+  id: string
+  tenantId: string
+  ticketId: string
+  displayId: string
+  type: 'unopened_sla'
+  message: string
+  fromName: string
+  toName: string | null
+  hours: number
+  createdAt: string
+  read: boolean
 }
 
 export interface CustomerAccount {

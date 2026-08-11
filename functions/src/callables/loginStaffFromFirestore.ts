@@ -5,7 +5,15 @@ import { db } from '../helpers/admin'
 import { initialsFromName } from '../helpers/auth'
 import { assertRateLimit } from '../helpers/sms'
 import { requireStaffSession, STAFF_SESSIONS, type StaffSession } from '../helpers/staffSession'
-import type { Department, StaffUser, Tenant, Ticket, TicketHistoryEntry, UserRole } from '../types'
+import type {
+  Department,
+  ManagerAlert,
+  StaffUser,
+  Tenant,
+  Ticket,
+  TicketHistoryEntry,
+  UserRole,
+} from '../types'
 
 const DEFAULT_TENANT_ID = 'tn_fenwick'
 const DEFAULT_DEPARTMENT_ID = 'dep_repair'
@@ -40,8 +48,8 @@ async function ensureDefaultTenant(tenantId: string): Promise<Tenant> {
     name: 'Fenwick Home Services',
     subdomain: 'fenwick',
     plan: 'growth',
-    config: { primaryColor: '#18181b', logoInitial: 'F', ticketPrefix: 'CB' },
-    configJson: { primaryColor: '#18181b', logoInitial: 'F', ticketPrefix: 'CB' },
+    config: { primaryColor: '#18181b', logoInitial: 'F', ticketPrefix: 'CB', unopenedSlaHours: 3 },
+    configJson: { primaryColor: '#18181b', logoInitial: 'F', ticketPrefix: 'CB', unopenedSlaHours: 3 },
     createdAt: now,
   }
   await tenantRef.set(tenant)
@@ -170,7 +178,7 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
 
   await ensureDefaultTenant(tenantId)
 
-  const [tenantSnap, departmentsSnap, usersSnap, ticketsSnap] = await Promise.all([
+  const [tenantSnap, departmentsSnap, usersSnap, ticketsSnap, alertsSnap] = await Promise.all([
     db.collection('tenants').doc(tenantId).get(),
     db.collection('tenants').doc(tenantId).collection('departments').get(),
     db.collection('tenants').doc(tenantId).collection('users').get(),
@@ -185,6 +193,16 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
         // Fallback if index/order is unavailable.
         return db.collection('tenants').doc(tenantId).collection('tickets').limit(200).get()
       }),
+    db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('managerAlerts')
+      .orderBy('createdAt', 'desc')
+      .limit(20)
+      .get()
+      .catch(async () =>
+        db.collection('tenants').doc(tenantId).collection('managerAlerts').limit(20).get(),
+      ),
   ])
 
   const tenant = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant
@@ -195,6 +213,9 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
   const tickets = ticketsSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as Ticket)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  const managerAlerts = alertsSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ManagerAlert)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return {
     profile: session.profile,
@@ -202,6 +223,7 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
     departments,
     staff,
     tickets,
+    managerAlerts,
   }
 })
 

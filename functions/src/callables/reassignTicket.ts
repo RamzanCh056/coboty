@@ -58,6 +58,7 @@ export const reassignTicket = onCall(
 
     await ticketRef.update({
       assignedTo: assigneeId,
+      assignedAt: now,
       status: nextStatus,
       updatedAt: now,
       isStuck: false,

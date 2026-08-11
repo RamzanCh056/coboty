@@ -103,13 +103,17 @@ export const assignTicket = onCall(
       sms = solvedSms(customerFirst, ticket.displayId)
     }
 
-    await ticketRef.update({
+    const patch: Record<string, unknown> = {
       status: nextStatus,
       assignedTo,
       updatedAt: now,
       isStuck: false,
       stuckSinceHours: null,
-    })
+    }
+    if (intent === 'assign_to_me') {
+      patch.assignedAt = now
+    }
+    await ticketRef.update(patch)
 
     await appendHistory(tenantId, ticketId, {
       action: historyAction,

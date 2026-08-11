@@ -10,6 +10,7 @@ export interface TenantConfig {
   primaryColor: string
   logoInitial: string
   ticketPrefix: string
+  unopenedSlaHours?: number
 }
 
 export interface Tenant {

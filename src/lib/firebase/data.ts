@@ -11,6 +11,7 @@ import { db, functions } from '../firebase'
 import type {
   CustomerTicketSummary,
   Department,
+  ManagerAlert,
   PublicTracking,
   StaffUser,
   TakeoverReason,
@@ -130,6 +131,7 @@ export async function callLoadStaffWorkspace(sessionId: string): Promise<{
   departments: Department[]
   staff: StaffUser[]
   tickets: Ticket[]
+  managerAlerts: ManagerAlert[]
 }> {
   const fn = httpsCallable<
     { sessionId: string },
@@ -139,9 +141,33 @@ export async function callLoadStaffWorkspace(sessionId: string): Promise<{
       departments: Department[]
       staff: StaffUser[]
       tickets: Ticket[]
+      managerAlerts: ManagerAlert[]
     }
   >(functions, 'loadStaffWorkspace')
-  return (await fn({ sessionId })).data
+  const data = (await fn({ sessionId })).data
+  return { ...data, managerAlerts: data.managerAlerts ?? [] }
+}
+
+export async function callUpdateUnopenedSla(input: {
+  tenantId: string
+  hours: number
+  sessionId?: string
+}): Promise<{ ok: boolean; hours: number }> {
+  const fn = httpsCallable<typeof input, { ok: boolean; hours: number }>(
+    functions,
+    'updateUnopenedSla',
+  )
+  return (await fn(input)).data
+}
+
+export async function callRunUnopenedSlaCheck(input: {
+  sessionId?: string
+}): Promise<{ ok: boolean; forwarded: number; warned: number; slaHours: number }> {
+  const fn = httpsCallable<
+    typeof input,
+    { ok: boolean; forwarded: number; warned: number; slaHours: number }
+  >(functions, 'runUnopenedSlaCheck')
+  return (await fn(input)).data
 }
 
 export async function callLoadStaffTicketHistory(

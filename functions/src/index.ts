@@ -13,4 +13,5 @@ export {
 export { listMyTickets } from './callables/listMyTickets'
 export { claimTicket } from './callables/claimTicket'
 export { onTicketCreated } from './triggers/onTicketCreated'
-export { checkStuckTickets } from './scheduled/checkStuckTickets'
+export { checkStuckTickets, runUnopenedSlaCheck } from './scheduled/checkStuckTickets'
+export { updateUnopenedSla } from './callables/updateUnopenedSla'

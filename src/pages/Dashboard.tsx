@@ -24,6 +24,7 @@ export function Dashboard() {
     departments,
     staff,
     tickets: allTickets,
+    managerAlerts,
     assignTicket,
     takeoverTicket,
     reassignTicket,
@@ -169,6 +170,17 @@ export function Dashboard() {
           <p className="rounded-control border border-status-stuck-bg bg-status-stuck-bg/40 px-3 py-2 text-sm text-status-stuck-text">
             {actionError}
           </p>
+        )}
+
+        {isManager && managerAlerts.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-card border border-status-stuck-bg bg-status-stuck-bg/30 px-4 py-3">
+            <p className="text-sm font-medium text-status-stuck-text">Unopened ticket warnings</p>
+            {managerAlerts.slice(0, 4).map((alert) => (
+              <p key={alert.id} className="text-sm text-text-secondary">
+                {alert.message}
+              </p>
+            ))}
+          </div>
         )}
 
         <div className="flex gap-4">

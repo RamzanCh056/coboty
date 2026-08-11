@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BarChart3, LogOut } from 'lucide-react'
+import { BarChart3, LogOut, Timer } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { cn } from '../../lib/cn'
 import { useAppData } from '../../context/AppData'
+import { SlaSettingsModal } from './SlaSettingsModal'
 import type { StaffUser, UserRole } from '../../data/types'
 
 const roleLabels: Record<UserRole, string> = {
@@ -15,9 +16,11 @@ const roleLabels: Record<UserRole, string> = {
 
 export function AccountMenu({ user }: { user: StaffUser }) {
   const [open, setOpen] = useState(false)
+  const [slaOpen, setSlaOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const { logout } = useAppData()
+  const canManageSla = user.role === 'manager' || user.role === 'admin'
 
   useEffect(() => {
     if (!open) return
@@ -66,6 +69,16 @@ export function AccountMenu({ user }: { user: StaffUser }) {
             <p className="truncate text-xs text-text-tertiary">{user.email}</p>
           </div>
           <div className="p-1">
+            {canManageSla && (
+              <MenuLink
+                icon={Timer}
+                label="Unopened ticket timer"
+                onClick={() => {
+                  setOpen(false)
+                  setSlaOpen(true)
+                }}
+              />
+            )}
             <MenuLink
               icon={BarChart3}
               label="Monthly report"
@@ -78,6 +91,7 @@ export function AccountMenu({ user }: { user: StaffUser }) {
           </div>
         </div>
       )}
+      {slaOpen && <SlaSettingsModal onClose={() => setSlaOpen(false)} />}
     </div>
   )
 }

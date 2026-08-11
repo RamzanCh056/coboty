@@ -59,6 +59,7 @@ export const takeoverTicket = onCall(
 
     await ticketRef.update({
       assignedTo: claims.uid,
+      assignedAt: now,
       status: nextStatus,
       updatedAt: now,
       isStuck: false,
