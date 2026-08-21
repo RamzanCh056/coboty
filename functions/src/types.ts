@@ -1,4 +1,4 @@
-export type TicketStatus = 'new' | 'assigned' | 'opened' | 'calling' | 'solved'
+export type TicketStatus = 'new' | 'assigned' | 'opened' | 'calling' | 'awaiting_confirmation' | 'solved'
 export type UserRole = 'admin' | 'manager' | 'agent' | 'readonly'
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical'
 export type DepartmentSlug = 'repair' | 'finance' | 'sales' | 'logistics'
@@ -60,6 +60,12 @@ export interface Ticket {
   updatedAt: string
   isStuck: boolean
   stuckSinceHours: number | null
+  trackingToken?: string | null
+  waitingForCustomer?: boolean
+  waitingForInternal?: boolean
+  customerNextStep?: string | null
+  promisedResponseAt?: string | null
+  hasUnreadCustomerReply?: boolean
 }
 
 export interface ManagerAlert {
@@ -67,7 +73,7 @@ export interface ManagerAlert {
   tenantId: string
   ticketId: string
   displayId: string
-  type: 'unopened_sla'
+  type: 'unopened_sla' | 'customer_escalation' | 'resolution_rejected' | 'customer_reply'
   message: string
   fromName: string
   toName: string | null
@@ -86,6 +92,12 @@ export type TicketAction =
   | 'note'
   | 'message'
   | 'received'
+  | 'escalated'
+  | 'reopened'
+  | 'confirmed_closed'
+  | 'resolution_rejected'
+  | 'ops_update'
+  | 'awaiting_confirmation'
 
 export type TakeoverReason =
   | 'colleague_unavailable'
@@ -151,6 +163,13 @@ export interface PublicTracking {
   updatedAt: string
   createdAt: string
   history: PublicHistoryItem[]
+  trackingToken: string
+  waitingForCustomer?: boolean
+  waitingForInternal?: boolean
+  customerNextStep?: string | null
+  promisedResponseAt?: string | null
+  whatHappensNext?: string | null
+  pendingCustomerConfirmation?: boolean
 }
 
 export interface StaffClaims {
@@ -170,7 +189,8 @@ export const nextStatusMap: Record<TicketStatus, TicketStatus | null> = {
   new: 'assigned',
   assigned: 'opened',
   opened: 'calling',
-  calling: 'solved',
+  calling: 'awaiting_confirmation',
+  awaiting_confirmation: 'solved',
   solved: null,
 }
 

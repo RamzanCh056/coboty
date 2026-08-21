@@ -4,9 +4,10 @@ import type { TicketStatus } from '../types'
 export const allowedTransitions: Record<TicketStatus, TicketStatus[]> = {
   new: ['assigned'],
   assigned: ['opened', 'calling'],
-  opened: ['calling'],
-  calling: ['solved'],
-  solved: [],
+  opened: ['calling', 'awaiting_confirmation'],
+  calling: ['awaiting_confirmation'],
+  awaiting_confirmation: ['solved', 'opened', 'calling'],
+  solved: ['opened'], // reopen
 }
 
 export function canTransition(from: TicketStatus, to: TicketStatus): boolean {
@@ -22,6 +23,8 @@ export function expectedTiming(status: TicketStatus): string | null {
       return 'Typically updated today'
     case 'calling':
       return 'Today, before 17:00'
+    case 'awaiting_confirmation':
+      return 'Please confirm resolution'
     case 'solved':
       return null
   }
@@ -36,7 +39,9 @@ export function statusSentence(status: TicketStatus, firstName: string | null): 
     case 'opened':
       return `${firstName ?? 'A specialist'} is working on your case.`
     case 'calling':
-      return `${firstName ?? 'A specialist'} will call you.`
+      return `${firstName ?? 'A specialist'} is contacting you.`
+    case 'awaiting_confirmation':
+      return 'We believe your case is resolved. Please confirm or let us know if you need more help.'
     case 'solved':
       return 'Your case has been resolved.'
   }

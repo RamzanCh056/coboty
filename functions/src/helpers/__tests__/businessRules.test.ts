@@ -16,8 +16,24 @@ describe('status transitions', () => {
     expect(canTransition('assigned', 'solved')).toBe(false)
   })
 
-  it('allows calling -> solved', () => {
-    expect(canTransition('calling', 'solved')).toBe(true)
+  it('allows opened -> calling or awaiting_confirmation', () => {
+    expect(canTransition('opened', 'calling')).toBe(true)
+    expect(canTransition('opened', 'awaiting_confirmation')).toBe(true)
+  })
+
+  it('allows calling -> awaiting_confirmation', () => {
+    expect(canTransition('calling', 'awaiting_confirmation')).toBe(true)
+    expect(canTransition('calling', 'solved')).toBe(false)
+  })
+
+  it('allows awaiting_confirmation transitions', () => {
+    expect(canTransition('awaiting_confirmation', 'solved')).toBe(true)
+    expect(canTransition('awaiting_confirmation', 'opened')).toBe(true)
+    expect(canTransition('awaiting_confirmation', 'calling')).toBe(true)
+  })
+
+  it('allows solved -> opened (reopen)', () => {
+    expect(canTransition('solved', 'opened')).toBe(true)
     expect(canTransition('solved', 'new')).toBe(false)
   })
 })

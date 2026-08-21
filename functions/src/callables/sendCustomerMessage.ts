@@ -3,12 +3,16 @@ import { z } from 'zod'
 import { db } from '../helpers/admin'
 import { appendHistory, rebuildProjection } from '../helpers/projection'
 import { assertRateLimit } from '../helpers/sms'
+import { isTrackingToken } from '../helpers/trackingToken'
 import type { PublicTracking } from '../types'
 
 const schema = z.object({
-  displayId: z.string().min(3).max(32),
+  trackingToken: z.string().min(3).max(48).optional(),
+  displayId: z.string().min(3).max(32).optional(),
   message: z.string().trim().min(1).max(2000),
   customerName: z.string().trim().min(1).max(120).optional(),
+}).refine((data) => data.trackingToken || data.displayId, {
+  message: "Either trackingToken or displayId is required"
 })
 
 export const sendCustomerMessage = onCall({ cors: true }, async (request) => {
@@ -20,9 +24,24 @@ export const sendCustomerMessage = onCall({ cors: true }, async (request) => {
 
   const parsed = schema.safeParse(request.data)
   if (!parsed.success) throw new HttpsError('invalid-argument', 'Message is required.')
-  const { displayId, message, customerName } = parsed.data
+  const { trackingToken, displayId, message, customerName } = parsed.data
 
-  const projectionSnap = await db.collection('publicTracking').doc(displayId).get()
+  // Reject predictable displayId paths — require the private tracking token.
+  if (!trackingToken || !isTrackingToken(trackingToken)) {
+    if (displayId && !isTrackingToken(displayId)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Use secure ticket lookup with your ticket number and phone.',
+      )
+    }
+    if (!displayId || !isTrackingToken(displayId)) {
+      throw new HttpsError('invalid-argument', 'A valid tracking token is required.')
+    }
+  }
+
+  const lookupId = trackingToken && isTrackingToken(trackingToken) ? trackingToken : displayId!
+
+  const projectionSnap = await db.collection('publicTracking').doc(lookupId).get()
   if (!projectionSnap.exists) throw new HttpsError('not-found', 'Ticket not found.')
   const projection = projectionSnap.data() as PublicTracking
 
@@ -40,7 +59,11 @@ export const sendCustomerMessage = onCall({ cors: true }, async (request) => {
     .doc(projection.tenantId)
     .collection('tickets')
     .doc(projection.ticketId)
-    .update({ updatedAt: now })
+    .update({ 
+      updatedAt: now,
+      waitingForCustomer: false,
+      hasUnreadCustomerReply: true
+    })
 
   await rebuildProjection(projection.tenantId, projection.ticketId)
   return { ok: true }

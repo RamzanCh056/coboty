@@ -258,3 +258,19 @@ body {
     animation-duration: 0.001ms !important;
   }
 }
+
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}
+

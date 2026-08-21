@@ -92,10 +92,10 @@ export function subscribeAllHistoryForTenant(
 }
 
 export function subscribePublicTracking(
-  displayId: string,
+  trackingToken: string,
   cb: (row: PublicTracking | null) => void,
 ): Unsubscribe {
-  return onSnapshot(doc(db, 'publicTracking', displayId), (snap) => {
+  return onSnapshot(doc(db, 'publicTracking', trackingToken), (snap) => {
     cb(snap.exists() ? (snap.data() as PublicTracking) : null)
   })
 }
@@ -105,11 +105,11 @@ export async function callSubmitTicket(input: {
   customerName: string
   customerPhone: string
   claimText: string
-}): Promise<{ displayId: string; ticketId: string; tenantSlug: string }> {
-  const fn = httpsCallable<typeof input, { displayId: string; ticketId: string; tenantSlug: string }>(
-    functions,
-    'submitTicket',
-  )
+}): Promise<{ displayId: string; ticketId: string; tenantSlug: string; trackingToken: string }> {
+  const fn = httpsCallable<
+    typeof input,
+    { displayId: string; ticketId: string; tenantSlug: string; trackingToken: string }
+  >(functions, 'submitTicket')
   const result = await fn(input)
   return result.data
 }
@@ -221,11 +221,68 @@ export async function callReassignTicket(input: {
 }
 
 export async function callSendCustomerMessage(input: {
-  displayId: string
+  trackingToken: string
   message: string
   customerName?: string
 }): Promise<{ ok: boolean }> {
   const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'sendCustomerMessage')
+  return (await fn(input)).data
+}
+
+export async function callLookupTicketByPhone(input: {
+  displayId: string
+  customerPhone: string
+  tenantSlug?: string
+}): Promise<{ trackingToken: string; tenantSlug: string; displayId: string; ticketId: string }> {
+  const fn = httpsCallable<
+    typeof input,
+    { trackingToken: string; tenantSlug: string; displayId: string; ticketId: string }
+  >(functions, 'lookupTicketByPhone')
+  return (await fn(input)).data
+}
+
+export async function callRequestTicketUpdate(input: {
+  trackingToken: string
+  message?: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'requestTicketUpdate')
+  return (await fn(input)).data
+}
+
+export async function callConfirmTicketResolution(input: {
+  trackingToken: string
+  confirm: boolean
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'confirmTicketResolution')
+  return (await fn(input)).data
+}
+
+export async function callReopenTicket(input: {
+  trackingToken: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'reopenTicket')
+  return (await fn(input)).data
+}
+
+export async function callUpdateTicketOps(input: {
+  sessionId: string
+  tenantId: string
+  ticketId: string
+  waitingForCustomer?: boolean
+  waitingForInternal?: boolean
+  customerNextStep?: string
+  promisedResponseAt?: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'updateTicketOps')
+  return (await fn(input)).data
+}
+
+export async function callMarkCustomerReplyRead(input: {
+  sessionId: string
+  tenantId: string
+  ticketId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'markCustomerReplyRead')
   return (await fn(input)).data
 }
 

@@ -6,10 +6,11 @@ Multi-tenant customer claim tracking — Phase 2 Firebase backend
 ## Stack
 
 - Frontend: React + Vite + TypeScript
-- Auth: Firebase Auth (email/password) with custom claims `{ tenantId, role, departmentId }`
+- Staff login: Firestore `staf` credentials + session cookies (email **or** username / document id)
+- Customer auth: Firebase Auth (email/password)
 - Data: Firestore nested under `/tenants/{tenantId}/…`
 - Mutations: Cloud Functions (2nd gen) — clients are read-mostly
-- Public tracking: sanitized `/publicTracking/{displayId}` projection (get-only)
+- Public tracking: sanitized `/publicTracking/{trackingToken}` projection (192-bit token, get-only)
 
 ## Prerequisites
 
@@ -18,7 +19,6 @@ Multi-tenant customer claim tracking — Phase 2 Firebase backend
 3. Node 20+ recommended for Functions runtime
 
 Upgrade billing: https://console.firebase.google.com/project/cobotty/usage/details
-
 
 ## Local setup
 
@@ -55,12 +55,28 @@ If unset, classification falls back to keywords / first department and SMS sends
 
 ## Deploy
 
+Deploy **all three** together after tracking-token / confirmation changes:
+
 ```bash
 npm run functions:build
 npm run deploy:rules
 npm run deploy:functions
 npm run deploy:hosting
 ```
+
+Also deploy Firestore indexes (`firestore.indexes.json`) when collection-group lookup indexes change:
+
+```bash
+firebase deploy --only firestore:indexes
+```
+
+For Vercel frontend deploys, push to the connected GitHub repo; Functions + rules still deploy via Firebase CLI.
+
+## Security notes
+
+- Guest tracking requires **ticket number + matching phone**; projection docs are keyed by private tokens, not `CB-#####`.
+- Firestore rules reject get on predictable display-id paths under `publicTracking`.
+- **Critical remaining issue:** staff passwords in `staf` are still stored/compared as plain values and must be migrated (hashed) before production use.
 
 ## Tests
 
@@ -72,6 +88,7 @@ npm run test:rules   # requires Java for Firestore emulator
 ## Customer URLs
 
 - Submit: `https://<host>/fenwick/submit`
-- Track: `https://<host>/fenwick/track/CB-12345`
+- Track lookup: `https://<host>/fenwick/track`
+- Track (private token): `https://<host>/fenwick/track/<48-char-hex-token>`
 
-Staff login: `/login`
+Staff login: `/login` (email or username such as `manager`)

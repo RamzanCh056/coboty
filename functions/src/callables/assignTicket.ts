@@ -5,7 +5,7 @@ import { assertCanMutate, assertSameTenant, requireStaffActor } from '../helpers
 import { rebuildProjection, appendHistory } from '../helpers/projection'
 import { sendCustomerSms } from '../helpers/sms'
 import { canTransition } from '../helpers/status'
-import { assignedSms, callingSms, solvedSms } from '../helpers/templates'
+import { assignedSms, callingSms } from '../helpers/templates'
 import type { Ticket } from '../types'
 
 const schema = z.object({
@@ -45,7 +45,7 @@ export const assignTicket = onCall(
 
     let nextStatus = ticket.status
     let assignedTo = ticket.assignedTo
-    let historyAction: 'assigned' | 'opened' | 'calling' | 'solved' = 'assigned'
+    let historyAction: 'assigned' | 'opened' | 'calling' | 'solved' | 'awaiting_confirmation' = 'assigned'
     let note = ''
     let sms: string | null = null
 
@@ -91,16 +91,16 @@ export const assignTicket = onCall(
       }
       nextStatus = 'calling'
       historyAction = 'calling'
-      note = `${actorName} will call the customer.`
+      note = `Contacting customer — ${actorName}.`
       sms = callingSms(customerFirst, ticket.displayId, actorFirst)
     } else if (intent === 'mark_solved') {
-      if (!canTransition(ticket.status, 'solved')) {
-        throw new HttpsError('failed-precondition', `Cannot solve from status ${ticket.status}.`)
+      if (!canTransition(ticket.status, 'awaiting_confirmation')) {
+        throw new HttpsError('failed-precondition', `Cannot resolve from status ${ticket.status}.`)
       }
-      nextStatus = 'solved'
-      historyAction = 'solved'
-      note = `Marked solved by ${actorName}.`
-      sms = solvedSms(customerFirst, ticket.displayId)
+      nextStatus = 'awaiting_confirmation'
+      historyAction = 'awaiting_confirmation'
+      note = `Marked resolved — waiting for customer confirmation.`
+      sms = `Hi ${customerFirst}, we believe your case ${ticket.displayId} is resolved. Please confirm on your tracking page or let us know if you need more help.`
     }
 
     const patch: Record<string, unknown> = {

@@ -1,5 +1,6 @@
 import { db } from './admin'
 import { expectedTiming, statusSentence } from './status'
+import { ensureTicketTrackingToken } from './trackingToken'
 import type {
   Department,
   PublicHistoryItem,
@@ -33,6 +34,9 @@ export async function syncPublicTracking(input: {
       return item
     })
 
+  // Ensure the ticket has a tracking token
+  const trackingToken = await ensureTicketTrackingToken(input.ticket)
+  
   const projection: PublicTracking = {
     displayId: input.ticket.displayId,
     tenantId: input.tenant.id,
@@ -51,9 +55,24 @@ export async function syncPublicTracking(input: {
     updatedAt: input.ticket.updatedAt,
     createdAt: input.ticket.createdAt,
     history: publicHistory,
+    trackingToken,
+    waitingForCustomer: input.ticket.waitingForCustomer,
+    waitingForInternal: input.ticket.waitingForInternal,
+    customerNextStep: input.ticket.customerNextStep,
+    promisedResponseAt: input.ticket.promisedResponseAt,
+    whatHappensNext: input.ticket.customerNextStep || statusSentence(input.ticket.status, firstName),
+    pendingCustomerConfirmation: input.ticket.status === 'awaiting_confirmation',
   }
 
-  await db.collection('publicTracking').doc(input.ticket.displayId).set(projection)
+  // Write projection keyed by trackingToken
+  await db.collection('publicTracking').doc(trackingToken).set(projection)
+  
+  // Clean up legacy projection by displayId if it exists and differs from token
+  const legacyProjectionRef = db.collection('publicTracking').doc(input.ticket.displayId)
+  const legacySnap = await legacyProjectionRef.get()
+  if (legacySnap.exists && input.ticket.displayId !== trackingToken) {
+    await legacyProjectionRef.delete()
+  }
 }
 
 export async function loadVisibleHistory(

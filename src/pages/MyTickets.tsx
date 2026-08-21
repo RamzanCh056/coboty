@@ -103,7 +103,7 @@ export function MyTickets() {
             {tickets.map((ticket) => (
               <Link
                 key={ticket.ticketId}
-                to={`/${ticket.tenantSlug}/track/${ticket.displayId}`}
+                to={`/${ticket.tenantSlug}/track/${ticket.trackingToken || ticket.displayId}`}
                 className="focus-ring block rounded-card-lg border border-border bg-surface p-4 transition-colors hover:border-border-strong"
               >
                 <div className="flex items-start justify-between gap-3">

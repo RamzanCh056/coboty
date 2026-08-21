@@ -1,4 +1,4 @@
-export type TicketStatus = 'new' | 'assigned' | 'opened' | 'calling' | 'solved'
+export type TicketStatus = 'new' | 'assigned' | 'opened' | 'calling' | 'awaiting_confirmation' | 'solved'
 
 export type UserRole = 'admin' | 'manager' | 'agent' | 'readonly'
 
@@ -60,6 +60,12 @@ export interface Ticket {
   updatedAt: string
   isStuck: boolean
   stuckSinceHours: number | null
+  trackingToken?: string | null
+  waitingForCustomer?: boolean
+  waitingForInternal?: boolean
+  customerNextStep?: string | null
+  promisedResponseAt?: string | null
+  hasUnreadCustomerReply?: boolean
 }
 
 export type TicketAction =
@@ -72,6 +78,12 @@ export type TicketAction =
   | 'note'
   | 'message'
   | 'received'
+  | 'escalated'
+  | 'reopened'
+  | 'confirmed_closed'
+  | 'resolution_rejected'
+  | 'ops_update'
+  | 'awaiting_confirmation'
 
 export interface TicketHistoryEntry {
   id: string
@@ -129,6 +141,13 @@ export interface PublicTracking {
   updatedAt: string
   createdAt: string
   history: PublicHistoryItem[]
+  trackingToken: string
+  waitingForCustomer?: boolean
+  waitingForInternal?: boolean
+  customerNextStep?: string | null
+  promisedResponseAt?: string | null
+  whatHappensNext?: string | null
+  pendingCustomerConfirmation?: boolean
 }
 
 export interface PublicHistoryItem {
@@ -157,6 +176,7 @@ export const nextStatusMap: Record<TicketStatus, TicketStatus | null> = {
   new: 'assigned',
   assigned: 'opened',
   opened: 'calling',
-  calling: 'solved',
+  calling: 'awaiting_confirmation',
+  awaiting_confirmation: 'solved',
   solved: null,
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Inbox, UserCheck } from 'lucide-react'
+import { AlertTriangle, Inbox, MessageSquare, UserCheck } from 'lucide-react'
 import { TopBar } from '../components/dashboard/TopBar'
 import { SummaryCard } from '../components/dashboard/SummaryCard'
 import { DepartmentFilters } from '../components/dashboard/DepartmentFilters'
@@ -12,8 +12,10 @@ import { getStaffDepartment, catalogDepartment, catalogStaffMember } from '../da
 import type { Ticket, TakeoverReason } from '../data/types'
 import { useAppData } from '../context/AppData'
 import { subscribeTicketHistory } from '../lib/firebase/data'
+import { Select } from '../components/ui/Input'
 
-type SummaryFilter = 'new' | 'mine' | 'stuck' | null
+type SummaryFilter = 'new' | 'mine' | 'stuck' | 'replies' | null
+type SortMode = 'needs_attention' | 'oldest' | 'newest' | 'recently_updated'
 
 export function Dashboard() {
   const {
@@ -28,6 +30,8 @@ export function Dashboard() {
     assignTicket,
     takeoverTicket,
     reassignTicket,
+    updateTicketOps,
+    markCustomerReplyRead,
     setTicketHistory,
     historyForTicket,
     staffSessionId,
@@ -40,6 +44,7 @@ export function Dashboard() {
 
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>(null)
   const [departmentFilter, setDepartmentFilter] = useState<string | null>(null)
+  const [sortMode, setSortMode] = useState<SortMode>('needs_attention')
   const [query, setQuery] = useState('')
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
@@ -62,7 +67,6 @@ export function Dashboard() {
 
   const tickets = useMemo(() => {
     return allTickets.filter((t) => {
-      // Unclassified tickets stay visible to managers so nothing is silently lost.
       if (!t.departmentId) return !allowedDepartmentIds
       return !allowedDepartmentIds || allowedDepartmentIds.includes(t.departmentId)
     })
@@ -75,17 +79,19 @@ export function Dashboard() {
         (t) => currentUser && t.assignedTo === currentUser.id && t.status !== 'solved',
       ).length,
       stuck: tickets.filter((t) => t.isStuck).length,
+      replies: tickets.filter((t) => t.hasUnreadCustomerReply).length,
     }),
     [tickets, currentUser],
   )
 
   const filteredTickets = useMemo(() => {
-    return tickets
+    const rows = tickets
       .filter((t) => {
         if (summaryFilter === 'new') return t.status === 'new'
         if (summaryFilter === 'mine')
           return Boolean(currentUser && t.assignedTo === currentUser.id && t.status !== 'solved')
         if (summaryFilter === 'stuck') return t.isStuck
+        if (summaryFilter === 'replies') return Boolean(t.hasUnreadCustomerReply)
         return true
       })
       .filter((t) => (departmentFilter ? t.departmentId === departmentFilter : true))
@@ -98,7 +104,31 @@ export function Dashboard() {
           t.summary.toLowerCase().includes(q)
         )
       })
-  }, [tickets, summaryFilter, departmentFilter, query, currentUser])
+
+    const sorted = [...rows]
+    sorted.sort((a, b) => {
+      switch (sortMode) {
+        case 'oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        case 'newest':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        case 'recently_updated':
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        case 'needs_attention':
+        default: {
+          const score = (t: Ticket) =>
+            (t.hasUnreadCustomerReply ? 4 : 0) +
+            (t.isStuck ? 3 : 0) +
+            (t.status === 'new' ? 2 : 0) +
+            (t.status === 'awaiting_confirmation' ? 1 : 0)
+          const diff = score(b) - score(a)
+          if (diff !== 0) return diff
+          return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+        }
+      }
+    })
+    return sorted
+  }, [tickets, summaryFilter, departmentFilter, query, currentUser, sortMode])
 
   if (!currentUser || !currentTenant || !currentTenantId) {
     return (
@@ -131,8 +161,8 @@ export function Dashboard() {
 
   function openTicket(ticket: Ticket) {
     setActiveTicketId(ticket.id)
-    if (ticket.status === 'assigned') {
-      void runAction(ticket.id, () => assignTicket(ticket.id, 'mark_opened'))
+    if (ticket.hasUnreadCustomerReply) {
+      void markCustomerReplyRead(ticket.id)
     }
   }
 
@@ -165,7 +195,7 @@ export function Dashboard() {
     <div className="flex min-h-screen flex-col bg-page">
       <TopBar tenant={currentTenant} user={currentUser} query={query} onQueryChange={setQuery} />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-6 py-6">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
         {actionError && (
           <p className="rounded-control border border-status-stuck-bg bg-status-stuck-bg/40 px-3 py-2 text-sm text-status-stuck-text">
             {actionError}
@@ -174,7 +204,7 @@ export function Dashboard() {
 
         {isManager && managerAlerts.length > 0 && (
           <div className="flex flex-col gap-2 rounded-card border border-status-stuck-bg bg-status-stuck-bg/30 px-4 py-3">
-            <p className="text-sm font-medium text-status-stuck-text">Unopened ticket warnings</p>
+            <p className="text-sm font-medium text-status-stuck-text">Manager alerts</p>
             {managerAlerts.slice(0, 4).map((alert) => (
               <p key={alert.id} className="text-sm text-text-secondary">
                 {alert.message}
@@ -183,7 +213,7 @@ export function Dashboard() {
           </div>
         )}
 
-        <div className="flex gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4 lg:grid-cols-4">
           <SummaryCard
             label="New"
             count={counts.new}
@@ -199,21 +229,43 @@ export function Dashboard() {
             onClick={() => setSummaryFilter((f) => (f === 'mine' ? null : 'mine'))}
           />
           <SummaryCard
-            label="Stuck"
+            label="Needs attention"
             count={counts.stuck}
             icon={AlertTriangle}
             tone="warning"
             active={summaryFilter === 'stuck'}
             onClick={() => setSummaryFilter((f) => (f === 'stuck' ? null : 'stuck'))}
           />
+          <SummaryCard
+            label="Customer replies"
+            count={counts.replies}
+            icon={MessageSquare}
+            active={summaryFilter === 'replies'}
+            onClick={() => setSummaryFilter((f) => (f === 'replies' ? null : 'replies'))}
+          />
         </div>
 
-        <DepartmentFilters
-          departments={departments}
-          active={departmentFilter}
-          onChange={setDepartmentFilter}
-          allowedDepartmentIds={allowedDepartmentIds}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <DepartmentFilters
+            departments={departments}
+            active={departmentFilter}
+            onChange={setDepartmentFilter}
+            allowedDepartmentIds={allowedDepartmentIds}
+          />
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
+            <span className="shrink-0">Sort</span>
+            <Select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              className="min-w-[11rem]"
+            >
+              <option value="needs_attention">Needs attention first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="newest">Newest first</option>
+              <option value="recently_updated">Recently updated</option>
+            </Select>
+          </label>
+        </div>
 
         <div className="overflow-hidden rounded-card-lg border border-border bg-surface">
           {!currentTenantId ? (
@@ -256,7 +308,7 @@ export function Dashboard() {
         </div>
 
         <footer className="mt-auto border-t border-border pt-4 text-sm text-text-tertiary">
-          {solvedThisWeek} solved ·{' '}
+          {solvedThisWeek} resolved ·{' '}
           <Link
             to="/report"
             className="focus-ring rounded-control font-medium text-text-secondary underline-offset-2 transition-colors duration-150 ease-out hover:text-text-primary hover:underline"
@@ -279,6 +331,9 @@ export function Dashboard() {
         onPrimaryAction={handlePrimaryAction}
         onReassign={handleReassign}
         onTakeover={handleTakeover}
+        onUpdateOps={(ticket, patch) =>
+          void runAction(ticket.id, () => updateTicketOps({ ticketId: ticket.id, ...patch }))
+        }
       />
     </div>
   )

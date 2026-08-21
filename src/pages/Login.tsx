@@ -110,6 +110,9 @@ export function Login() {
                 onClick={() => {
                   setTab('staff')
                   setError('')
+                  setName('')
+                  setEmail('')
+                  setPassword('')
                 }}
               >
                 Staff
@@ -119,6 +122,9 @@ export function Login() {
                 onClick={() => {
                   setTab('customer')
                   setError('')
+                  setName('')
+                  setEmail('')
+                  setPassword('')
                 }}
               >
                 Customer
@@ -128,16 +134,19 @@ export function Login() {
             {tab === 'staff' ? (
               <>
                 <h2 className="text-xl font-semibold tracking-tight text-zinc-950">Welcome back</h2>
-                <p className="mt-1.5 text-sm text-zinc-500">Enter your work email and password.</p>
+                <p className="mt-1.5 text-sm text-zinc-500">
+                  Enter your work email or username, and password.
+                </p>
 
                 <form className="mt-6 flex flex-col gap-4" onSubmit={(e) => void handleStaffSubmit(e)}>
                   <Field
-                    label="Email address"
-                    type="email"
+                    label="Email or username"
+                    type="text"
                     autoFocus
+                    autoComplete="username"
                     value={email}
                     onChange={setEmail}
-                    placeholder="you@company.com"
+                    placeholder="you@company.com or manager"
                     clearError={() => setError('')}
                   />
                   <Field
@@ -259,7 +268,7 @@ export function Login() {
                   <Button
                     variant="ghost"
                     className="h-10 w-full"
-                    onClick={() => navigate(`/${tenantSlug}/track/CB-10466`)}
+                    onClick={() => navigate(`/${tenantSlug}/track`)}
                   >
                     Track with ticket number
                   </Button>
@@ -268,7 +277,8 @@ export function Login() {
             )}
           </Card>
           <p className="mt-5 text-center text-xs text-zinc-600/80">
-            Protected by enterprise-grade security
+            We use your details only to handle your case. Ticket links are private and require your
+            phone number to open.
           </p>
         </div>
       </main>
@@ -284,6 +294,7 @@ function Field({
   placeholder,
   clearError,
   autoFocus,
+  autoComplete,
 }: {
   label: string
   type: string
@@ -292,6 +303,7 @@ function Field({
   placeholder: string
   clearError: () => void
   autoFocus?: boolean
+  autoComplete?: string
 }) {
   return (
     <label className="flex flex-col gap-1.5">
@@ -301,6 +313,7 @@ function Field({
         type={type}
         required
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => {
           onChange(e.target.value)
@@ -348,7 +361,7 @@ function mapAuthError(err: unknown): string {
     code === 'functions/permission-denied' ||
     code === 'functions/unauthenticated'
   ) {
-    return 'Invalid email or password.'
+    return 'Invalid email/username or password.'
   }
   if (code === 'auth/email-already-in-use') {
     return 'An account with this email already exists. Log in instead.'

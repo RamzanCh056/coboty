@@ -25,9 +25,9 @@ service cloud.firestore {
       return claimRole() in ['admin', 'manager', 'agent', 'readonly'];
     }
 
-    // Public sanitized tracking projection — get/listen by displayId only, never list/write.
-    match /publicTracking/{displayId} {
-      allow get: if true;
+    // Public sanitized tracking projection — get by trackingToken only, never list/write.
+    match /publicTracking/{trackingId} {
+      allow get: if trackingId.matches('^[a-fA-F0-9]{48}$');
       allow list: if false;
       allow write: if false;
     }

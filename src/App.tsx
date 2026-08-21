@@ -41,6 +41,7 @@ function App() {
             }
           />
           <Route path="/:tenantSlug/submit" element={<Submit />} />
+          <Route path="/:tenantSlug/track" element={<Tracking />} />
           <Route path="/:tenantSlug/track/:ticketId" element={<Tracking />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

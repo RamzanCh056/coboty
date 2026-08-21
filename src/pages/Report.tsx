@@ -53,9 +53,9 @@ export function Report() {
         isGoodTrend: true,
       },
       {
-        label: 'Stuck rate',
+        label: 'Needs attention rate',
         value: `${stuckRate}%`,
-        delta: `${tickets.filter((t) => t.isStuck).length} stuck now`,
+        delta: `${tickets.filter((t) => t.isStuck).length} need attention now`,
         trend: stuckRate > 10 ? 'up' : 'down',
         isGoodTrend: stuckRate <= 10,
       },
@@ -123,7 +123,10 @@ export function Report() {
 
   function handleExport() {
     setExporting(true)
-    setTimeout(() => setExporting(false), 1000)
+    window.setTimeout(() => {
+      window.print()
+      setExporting(false)
+    }, 50)
   }
 
   const monthLabel = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })
@@ -140,9 +143,9 @@ export function Report() {
               {monthLabel} · {currentTenant.name}
             </p>
           </div>
-          <Button variant="primary" onClick={handleExport} disabled={exporting}>
+          <Button variant="primary" className="print:hidden" onClick={handleExport} disabled={exporting}>
             <Download className="h-4 w-4" aria-hidden="true" />
-            {exporting ? 'Preparing PDF…' : 'Export PDF'}
+            {exporting ? 'Opening print…' : 'Save as PDF'}
           </Button>
         </div>
 

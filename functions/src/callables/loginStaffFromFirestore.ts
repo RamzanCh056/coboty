@@ -20,7 +20,7 @@ const DEFAULT_DEPARTMENT_ID = 'dep_repair'
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7
 
 const loginSchema = z.object({
-  email: z.string().trim().email().max(254),
+  email: z.string().trim().min(1).max(254),
   password: z.string().min(1).max(128),
 })
 
@@ -102,17 +102,53 @@ export const loginStaffFromFirestore = onCall({ cors: true }, async (request) =>
 
   const parsed = loginSchema.safeParse(request.data)
   if (!parsed.success) {
-    throw new HttpsError('invalid-argument', 'Enter a valid email and password.')
+    throw new HttpsError('invalid-argument', 'Enter a valid email/username and password.')
   }
 
-  const email = parsed.data.email.toLowerCase()
-  const snap = await db.collection('staf').where('email', '==', email).limit(1).get()
-  const credential = snap.docs[0]
-  if (!credential || !passwordsMatch(credential.data().password, parsed.data.password)) {
-    throw new HttpsError('permission-denied', 'Invalid email or password.')
+  const rawIdentifier = parsed.data.email.trim()
+  const identifier = rawIdentifier.toLowerCase()
+
+  let credential:
+    | FirebaseFirestore.QueryDocumentSnapshot
+    | FirebaseFirestore.DocumentSnapshot
+    | undefined
+
+  // Check if identifier looks like email
+  if (identifier.includes('@')) {
+    const snap = await db.collection('staf').where('email', '==', identifier).limit(1).get()
+    credential = snap.docs[0]
+  } else {
+    // Try username as document ID (preserve original casing), then field lookups
+    const docSnap = await db.collection('staf').doc(rawIdentifier).get()
+    if (docSnap.exists) {
+      credential = docSnap
+    }
+
+    if (!credential) {
+      const lowerDoc = await db.collection('staf').doc(identifier).get()
+      if (lowerDoc.exists) credential = lowerDoc
+    }
+
+    if (!credential) {
+      const snap = await db.collection('staf').where('username', '==', identifier).limit(1).get()
+      if (!snap.empty) {
+        credential = snap.docs[0]
+      } else {
+        const emailSnap = await db
+          .collection('staf')
+          .where('email', '==', identifier)
+          .limit(1)
+          .get()
+        credential = emailSnap.docs[0]
+      }
+    }
+  }
+  
+  if (!credential || !passwordsMatch(credential.data()?.password, parsed.data.password)) {
+    throw new HttpsError('permission-denied', 'Invalid email/username or password.')
   }
 
-  const data = credential.data()
+  const data = credential.data() ?? {}
   const tenantId = typeof data.tenantId === 'string' ? data.tenantId : DEFAULT_TENANT_ID
   const departmentId =
     typeof data.departmentId === 'string' ? data.departmentId : DEFAULT_DEPARTMENT_ID
@@ -120,6 +156,12 @@ export const loginStaffFromFirestore = onCall({ cors: true }, async (request) =>
   const role = allowedRoles.includes(data.role as UserRole)
     ? (data.role as UserRole)
     : 'agent'
+  const storedEmail = typeof data.email === 'string' ? data.email.toLowerCase() : ''
+  const email = storedEmail.includes('@')
+    ? storedEmail
+    : identifier.includes('@')
+      ? identifier
+      : storedEmail || `${identifier}@staff.local`
   const name =
     typeof data.name === 'string' && data.name.trim()
       ? data.name.trim()
@@ -139,7 +181,7 @@ export const loginStaffFromFirestore = onCall({ cors: true }, async (request) =>
     id: credential.id,
     tenantId,
     name,
-    email,
+    email: email,
     role,
     departmentId,
     avatarInitials: initialsFromName(name),
@@ -158,7 +200,7 @@ export const loginStaffFromFirestore = onCall({ cors: true }, async (request) =>
   const now = Date.now()
   const session: StaffSession = {
     id: sessionId,
-    email,
+    email: email,
     profile,
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),

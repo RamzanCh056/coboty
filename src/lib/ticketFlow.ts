@@ -6,7 +6,8 @@ export const nextStatusMap: Record<TicketStatus, TicketStatus | null> = {
   new: 'assigned',
   assigned: 'opened',
   opened: 'calling',
-  calling: 'solved',
+  calling: 'awaiting_confirmation',
+  awaiting_confirmation: 'solved',
   solved: null,
 }
 
@@ -22,9 +23,10 @@ export function getPrimaryAction(ticket: Ticket): TicketAction | null {
       return { label: 'Assign to me', icon: UserPlus }
     case 'assigned':
     case 'opened':
-      return { label: 'Will call', icon: PhoneCall }
+      return { label: 'Contact customer', icon: PhoneCall }
     case 'calling':
-      return { label: 'Solved', icon: Check }
+      return { label: 'Mark resolved', icon: Check }
+    case 'awaiting_confirmation':
     case 'solved':
       return null
   }
@@ -39,6 +41,8 @@ export function expectedTiming(status: TicketStatus): string | null {
       return 'Typically updated today'
     case 'calling':
       return 'Today, before 17:00'
+    case 'awaiting_confirmation':
+      return 'Waiting for your confirmation'
     case 'solved':
       return null
   }
@@ -49,4 +53,8 @@ export function pickAutoAssignee(ticket: Ticket) {
   const dept = catalogDepartment(ticket.departmentId)
   if (!dept) return tenantStaff[0] ?? null
   return tenantStaff.find((s) => s.departmentId === dept.id || s.team === dept.name) ?? tenantStaff[0] ?? null
+}
+
+export function isTrackingToken(value: string): boolean {
+  return /^[a-f0-9]{48}$/i.test(value)
 }

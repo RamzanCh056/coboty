@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../helpers/admin'
 import { assertRateLimit } from '../helpers/sms'
 import { generateDisplayNumber } from '../helpers/status'
+import { generateTrackingToken } from '../helpers/trackingToken'
 import type { Tenant, Ticket } from '../types'
 
 const submitSchema = z.object({
@@ -47,6 +48,7 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
 
   const now = new Date().toISOString()
   const ticketRef = db.collection('tenants').doc(tenant.id).collection('tickets').doc()
+  const trackingToken = generateTrackingToken()
   const customerUid =
     request.auth?.uid && !request.auth.token.role ? request.auth.uid : null
   const customerEmail =
@@ -71,6 +73,7 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
     updatedAt: now,
     isStuck: false,
     stuckSinceHours: null,
+    trackingToken,
   }
 
   await ticketRef.set(ticket)
@@ -94,7 +97,7 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
   })
 
   // Temporary projection so tracking works before onTicketCreated finishes.
-  await db.collection('publicTracking').doc(displayId).set({
+  await db.collection('publicTracking').doc(trackingToken).set({
     displayId,
     tenantId: tenant.id,
     tenantSlug: tenant.subdomain,
@@ -120,7 +123,9 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
         timestamp: now,
       },
     ],
+    trackingToken,
+    pendingCustomerConfirmation: false,
   })
 
-  return { displayId, ticketId: ticket.id, tenantSlug: tenant.subdomain }
+  return { displayId, ticketId: ticket.id, tenantSlug: tenant.subdomain, trackingToken }
 })

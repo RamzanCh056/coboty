@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Mic, MessageSquare } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -57,8 +57,9 @@ export function Submit() {
         customerPhone: customerPhone.trim(),
         claimText: claimText.trim(),
       })
-      navigate(`/${result.tenantSlug}/track/${result.displayId}`, {
-        state: { justSubmitted: true },
+      const trackId = result.trackingToken || result.displayId
+      navigate(`/${result.tenantSlug}/track/${trackId}`, {
+        state: { justSubmitted: true, displayId: result.displayId },
       })
     } catch (err) {
       setSubmitting(false)
@@ -89,8 +90,8 @@ export function Submit() {
 
             <h1 className="text-2xl font-medium tracking-tight text-text-primary">What's going on?</h1>
             <p className="mt-2 text-base text-text-secondary">
-              Tell us what happened — we'll get the right person on it. No account needed, takes about
-              30 seconds.
+              Describe the problem clearly. We'll assign a named owner on our team and keep this case
+              updated until it's resolved. No account needed — about 30 seconds.
             </p>
 
             <div className="mt-6 flex flex-col gap-4">
@@ -121,7 +122,7 @@ export function Submit() {
                   autoComplete="tel"
                 />
                 <span className="text-xs text-text-tertiary">
-                  We'll text your ticket number and status updates here.
+                  We'll text your ticket number here. You'll also need this number to look up your case.
                 </span>
               </label>
 
@@ -136,16 +137,9 @@ export function Submit() {
                   placeholder="e.g. My washing machine started leaking again two days after the repair visit..."
                   className="min-h-40"
                 />
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Add a voice message"
-                    className="focus-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-border text-text-secondary opacity-40"
-                    disabled
-                  >
-                    <Mic className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
+                <p className="text-xs text-text-tertiary">
+                  Include what went wrong, when it started, and any reference numbers you already have.
+                </p>
               </div>
             </div>
 
@@ -161,7 +155,8 @@ export function Submit() {
             </Button>
 
             <p className="mt-6 text-center text-xs text-text-tertiary">
-              No account needed. You'll get a ticket number and text updates as things progress.
+              After you submit, a specialist owns your case. You can track progress and add messages
+              anytime with your ticket number and phone.
             </p>
           </>
         )}

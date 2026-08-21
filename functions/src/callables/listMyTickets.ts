@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { db } from '../helpers/admin'
+import { ensureTicketTrackingToken } from '../helpers/trackingToken'
 import type { Ticket } from '../types'
 
 export const listMyTickets = onCall({ cors: true }, async (request) => {
@@ -33,12 +34,14 @@ export const listMyTickets = onCall({ cors: true }, async (request) => {
       }
       tenantCache.set(ticket.tenantId, tenant)
     }
+    const trackingToken = await ensureTicketTrackingToken(ticket)
     tickets.push({
       ticketId: ticket.id,
       tenantId: ticket.tenantId,
       tenantSlug: tenant.subdomain,
       tenantName: tenant.name,
       displayId: ticket.displayId,
+      trackingToken,
       status: ticket.status,
       summary: ticket.summary,
       updatedAt: ticket.updatedAt,

@@ -24,10 +24,12 @@ import {
   callLoadStaffWorkspace,
   callLoginStaffFromFirestore,
   callLogoutStaffSession,
+  callMarkCustomerReplyRead,
   callReassignTicket,
   callRunUnopenedSlaCheck,
   callSubmitTicket,
   callTakeoverTicket,
+  callUpdateTicketOps,
   callUpdateUnopenedSla,
   subscribeDepartments,
   subscribeTickets,
@@ -87,13 +89,21 @@ interface AppDataContextValue {
     customerName: string
     customerPhone: string
     claimText: string
-  }) => Promise<{ displayId: string; tenantSlug: string }>
+  }) => Promise<{ displayId: string; tenantSlug: string; trackingToken: string }>
   assignTicket: (
     ticketId: string,
     action?: 'assign_to_me' | 'will_call' | 'mark_solved' | 'mark_opened',
   ) => Promise<void>
   takeoverTicket: (ticketId: string, reason: TakeoverReason, note?: string) => Promise<string>
   reassignTicket: (ticketId: string, assigneeId: string) => Promise<void>
+  updateTicketOps: (input: {
+    ticketId: string
+    waitingForCustomer?: boolean
+    waitingForInternal?: boolean
+    customerNextStep?: string
+    promisedResponseAt?: string
+  }) => Promise<void>
+  markCustomerReplyRead: (ticketId: string) => Promise<void>
   updateUnopenedSla: (hours: number) => Promise<void>
   runUnopenedSlaCheck: () => Promise<{ forwarded: number; warned: number; slaHours: number }>
   historyForTicket: (ticketId: string) => TicketHistoryEntry[]
@@ -429,7 +439,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       claimText: string
     }) => {
       const result = await callSubmitTicket(input)
-      return { displayId: result.displayId, tenantSlug: result.tenantSlug }
+      return {
+        displayId: result.displayId,
+        tenantSlug: result.tenantSlug,
+        trackingToken: result.trackingToken,
+      }
     },
     [],
   )
@@ -511,6 +525,38 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [currentTenantId, staffSessionId, refreshStaffWorkspace],
   )
 
+  const updateTicketOps = useCallback(
+    async (input: {
+      ticketId: string
+      waitingForCustomer?: boolean
+      waitingForInternal?: boolean
+      customerNextStep?: string
+      promisedResponseAt?: string
+    }) => {
+      if (!currentTenantId || !staffSessionId) throw new Error('Not signed in to a tenant.')
+      await callUpdateTicketOps({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ...input,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
+  const markCustomerReplyRead = useCallback(
+    async (ticketId: string) => {
+      if (!currentTenantId || !staffSessionId) return
+      await callMarkCustomerReplyRead({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ticketId,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
   const setTicketHistory = useCallback((ticketId: string, entries: TicketHistoryEntry[]) => {
     setHistoryByTicket((prev) => ({ ...prev, [ticketId]: entries }))
   }, [])
@@ -559,6 +605,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       assignTicket,
       takeoverTicket,
       reassignTicket,
+      updateTicketOps,
+      markCustomerReplyRead,
       updateUnopenedSla,
       runUnopenedSlaCheck,
       historyForTicket,
@@ -590,6 +638,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       assignTicket,
       takeoverTicket,
       reassignTicket,
+      updateTicketOps,
+      markCustomerReplyRead,
       updateUnopenedSla,
       runUnopenedSlaCheck,
       historyForTicket,

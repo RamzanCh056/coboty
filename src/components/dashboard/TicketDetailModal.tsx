@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { DepartmentPill, StatusPill, WarningChip } from '../ui/Pill'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
-import { Select, Textarea } from '../ui/Input'
+import { Input, Select, Textarea } from '../ui/Input'
 import type {
   Department,
   StaffUser,
@@ -14,7 +14,7 @@ import type {
 import { getPrimaryAction } from '../../lib/ticketFlow'
 import { fullTimestamp } from '../../lib/format'
 import { cn } from '../../lib/cn'
-import { AlertTriangle, Lock, Users } from 'lucide-react'
+import { AlertTriangle, Lock, MessageSquare, Users } from 'lucide-react'
 
 const reasonOptions: { value: TakeoverReason; label: string }[] = [
   { value: 'colleague_unavailable', label: 'Colleague unavailable' },
@@ -56,6 +56,7 @@ export function TicketDetailModal({
   onPrimaryAction,
   onReassign,
   onTakeover,
+  onUpdateOps,
 }: {
   ticket: Ticket | null
   department: Department | null
@@ -68,10 +69,37 @@ export function TicketDetailModal({
   onPrimaryAction: (ticket: Ticket) => void
   onReassign: (ticket: Ticket, staffId: string) => void
   onTakeover: (ticket: Ticket, reason: TakeoverReason, note: string) => void
+  onUpdateOps?: (
+    ticket: Ticket,
+    patch: {
+      waitingForCustomer?: boolean
+      waitingForInternal?: boolean
+      customerNextStep?: string
+      promisedResponseAt?: string
+    },
+  ) => void
 }) {
   const [reason, setReason] = useState<TakeoverReason>('colleague_unavailable')
   const [note, setNote] = useState('')
   const [reassignTo, setReassignTo] = useState('')
+  const [nextStep, setNextStep] = useState('')
+  const [promisedAt, setPromisedAt] = useState('')
+  const [waitingCustomer, setWaitingCustomer] = useState(false)
+  const [waitingInternal, setWaitingInternal] = useState(false)
+
+  useEffect(() => {
+    if (!ticket) return
+    setNextStep(ticket.customerNextStep ?? '')
+    setPromisedAt(ticket.promisedResponseAt ? ticket.promisedResponseAt.slice(0, 16) : '')
+    setWaitingCustomer(Boolean(ticket.waitingForCustomer))
+    setWaitingInternal(Boolean(ticket.waitingForInternal))
+  }, [
+    ticket?.id,
+    ticket?.customerNextStep,
+    ticket?.promisedResponseAt,
+    ticket?.waitingForCustomer,
+    ticket?.waitingForInternal,
+  ])
 
   if (!ticket || !department) return null
 
@@ -86,10 +114,16 @@ export function TicketDetailModal({
         <div className="flex flex-wrap items-center gap-2">
           <DepartmentPill name={department.name} slug={department.slug} />
           <StatusPill status={ticket.status} />
+          {ticket.hasUnreadCustomerReply && (
+            <WarningChip>
+              <MessageSquare className="h-3 w-3" aria-hidden="true" />
+              Customer reply
+            </WarningChip>
+          )}
           {ticket.isStuck && (
             <WarningChip>
               <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-              No update in {ticket.stuckSinceHours}h
+              Needs attention · {ticket.stuckSinceHours}h
             </WarningChip>
           )}
         </div>
@@ -108,6 +142,59 @@ export function TicketDetailModal({
             <primaryAction.icon className="h-3.5 w-3.5" aria-hidden="true" />
             {primaryAction.label}
           </Button>
+        )}
+
+        {onUpdateOps && ticket.status !== 'solved' && (
+          <div className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3">
+            <p className="text-sm font-medium text-text-secondary">Case operations</p>
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={waitingCustomer}
+                onChange={(e) => setWaitingCustomer(e.target.checked)}
+              />
+              Waiting for customer
+            </label>
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={waitingInternal}
+                onChange={(e) => setWaitingInternal(e.target.checked)}
+              />
+              Waiting for internal team
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-tertiary">Customer-facing next step</span>
+              <Textarea
+                value={nextStep}
+                onChange={(e) => setNextStep(e.target.value)}
+                placeholder="e.g. We'll confirm parts availability and call you tomorrow."
+                className="min-h-20"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-tertiary">Promised response</span>
+              <Input
+                type="datetime-local"
+                value={promisedAt}
+                onChange={(e) => setPromisedAt(e.target.value)}
+              />
+            </label>
+            <Button
+              variant="outline"
+              className="self-start"
+              onClick={() =>
+                onUpdateOps(ticket, {
+                  waitingForCustomer: waitingCustomer,
+                  waitingForInternal: waitingInternal,
+                  customerNextStep: nextStep.trim(),
+                  promisedResponseAt: promisedAt ? new Date(promisedAt).toISOString() : '',
+                })
+              }
+            >
+              Save case update
+            </Button>
+          </div>
         )}
 
         {canReassign && ticket.status !== 'solved' && reassignOptions.length > 0 && (

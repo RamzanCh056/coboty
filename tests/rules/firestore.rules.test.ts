@@ -96,9 +96,26 @@ describe('tenant isolation', () => {
 })
 
 describe('public tracking projection', () => {
-  it('allows unauthenticated get by displayId', async () => {
+  it('allows unauthenticated get by tracking token', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
-    await assertSucceeds(getDoc(doc(db, 'publicTracking/CB-10001')))
+    const trackingToken = '1234567890abcdef1234567890abcdef1234567890abcdef'
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const adminDb = ctx.firestore()
+      await setDoc(doc(adminDb, `publicTracking/${trackingToken}`), {
+        trackingToken,
+        displayId: 'CB-10001',
+        tenantId: 'tn_fenwick',
+        summary: 'Washer leak',
+        status: 'new',
+        history: [],
+      })
+    })
+    await assertSucceeds(getDoc(doc(db, `publicTracking/${trackingToken}`)))
+  })
+
+  it('denies unauthenticated get by displayId', async () => {
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(db, 'publicTracking/CB-10001')))
   })
 
   it('denies unauthenticated list of publicTracking', async () => {

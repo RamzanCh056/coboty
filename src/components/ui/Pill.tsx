@@ -6,8 +6,9 @@ const statusLabels: Record<TicketStatus, string> = {
   new: 'New',
   assigned: 'Assigned',
   opened: 'In progress',
-  calling: 'Calling',
-  solved: 'Solved',
+  calling: 'Contacting',
+  awaiting_confirmation: 'Confirm close',
+  solved: 'Resolved',
 }
 
 const statusClasses: Record<TicketStatus, string> = {
@@ -15,6 +16,7 @@ const statusClasses: Record<TicketStatus, string> = {
   assigned: 'bg-status-assigned-bg text-status-assigned-text',
   opened: 'bg-status-opened-bg text-status-opened-text',
   calling: 'bg-status-calling-bg text-status-calling-text',
+  awaiting_confirmation: 'bg-status-calling-bg text-status-calling-text',
   solved: 'bg-status-solved-bg text-status-solved-text',
 }
 
