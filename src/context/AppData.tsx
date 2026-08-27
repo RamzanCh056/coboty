@@ -18,6 +18,8 @@ import {
 import { auth } from '../lib/firebase'
 import {
   callAssignTicket,
+  callAcknowledgeManagerAlert,
+  callAssignManagerAlert,
   callClaimTicket,
   callListMyTickets,
   callLoadStaffTicketHistory,
@@ -26,6 +28,7 @@ import {
   callLogoutStaffSession,
   callMarkCustomerReplyRead,
   callReassignTicket,
+  callResolveManagerAlert,
   callRunUnopenedSlaCheck,
   callSubmitTicket,
   callTakeoverTicket,
@@ -89,10 +92,13 @@ interface AppDataContextValue {
     customerName: string
     customerPhone: string
     claimText: string
+    preferredChannel?: 'sms' | 'email'
+    customerEmail?: string
   }) => Promise<{ displayId: string; tenantSlug: string; trackingToken: string }>
   assignTicket: (
     ticketId: string,
     action?: 'assign_to_me' | 'will_call' | 'mark_solved' | 'mark_opened',
+    resolutionEvidence?: string,
   ) => Promise<void>
   takeoverTicket: (ticketId: string, reason: TakeoverReason, note?: string) => Promise<string>
   reassignTicket: (ticketId: string, assigneeId: string) => Promise<void>
@@ -104,6 +110,9 @@ interface AppDataContextValue {
     promisedResponseAt?: string
   }) => Promise<void>
   markCustomerReplyRead: (ticketId: string) => Promise<void>
+  acknowledgeManagerAlert: (alertId: string) => Promise<void>
+  assignManagerAlert: (alertId: string, assignedToStaffId: string) => Promise<void>
+  resolveManagerAlert: (alertId: string) => Promise<void>
   updateUnopenedSla: (hours: number) => Promise<void>
   runUnopenedSlaCheck: () => Promise<{ forwarded: number; warned: number; slaHours: number }>
   historyForTicket: (ticketId: string) => TicketHistoryEntry[]
@@ -437,6 +446,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       customerName: string
       customerPhone: string
       claimText: string
+      preferredChannel?: 'sms' | 'email'
+      customerEmail?: string
     }) => {
       const result = await callSubmitTicket(input)
       return {
@@ -449,12 +460,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   )
 
   const assignTicket = useCallback(
-    async (ticketId: string, action?: 'assign_to_me' | 'will_call' | 'mark_solved' | 'mark_opened') => {
+    async (
+      ticketId: string,
+      action?: 'assign_to_me' | 'will_call' | 'mark_solved' | 'mark_opened',
+      resolutionEvidence?: string,
+    ) => {
       if (!currentTenantId) throw new Error('Not signed in to a tenant.')
       await callAssignTicket({
         tenantId: currentTenantId,
         ticketId,
         action,
+        resolutionEvidence,
         sessionId: staffSessionId ?? undefined,
       })
       await refreshStaffWorkspace()
@@ -557,6 +573,46 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [currentTenantId, staffSessionId, refreshStaffWorkspace],
   )
 
+  const acknowledgeManagerAlert = useCallback(
+    async (alertId: string) => {
+      if (!currentTenantId) throw new Error('Not signed in to a tenant.')
+      await callAcknowledgeManagerAlert({
+        sessionId: staffSessionId ?? undefined,
+        tenantId: currentTenantId,
+        alertId,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
+  const assignManagerAlert = useCallback(
+    async (alertId: string, assignedToStaffId: string) => {
+      if (!currentTenantId) throw new Error('Not signed in to a tenant.')
+      await callAssignManagerAlert({
+        sessionId: staffSessionId ?? undefined,
+        tenantId: currentTenantId,
+        alertId,
+        assignedToStaffId,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
+  const resolveManagerAlert = useCallback(
+    async (alertId: string) => {
+      if (!currentTenantId) throw new Error('Not signed in to a tenant.')
+      await callResolveManagerAlert({
+        sessionId: staffSessionId ?? undefined,
+        tenantId: currentTenantId,
+        alertId,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
   const setTicketHistory = useCallback((ticketId: string, entries: TicketHistoryEntry[]) => {
     setHistoryByTicket((prev) => ({ ...prev, [ticketId]: entries }))
   }, [])
@@ -607,6 +663,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       reassignTicket,
       updateTicketOps,
       markCustomerReplyRead,
+      acknowledgeManagerAlert,
+      assignManagerAlert,
+      resolveManagerAlert,
       updateUnopenedSla,
       runUnopenedSlaCheck,
       historyForTicket,
@@ -640,6 +699,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       reassignTicket,
       updateTicketOps,
       markCustomerReplyRead,
+      acknowledgeManagerAlert,
+      assignManagerAlert,
+      resolveManagerAlert,
       updateUnopenedSla,
       runUnopenedSlaCheck,
       historyForTicket,

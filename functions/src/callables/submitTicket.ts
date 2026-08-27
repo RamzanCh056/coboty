@@ -6,12 +6,24 @@ import { generateDisplayNumber } from '../helpers/status'
 import { generateTrackingToken } from '../helpers/trackingToken'
 import type { Tenant, Ticket } from '../types'
 
-const submitSchema = z.object({
-  tenantSlug: z.string().min(1).max(64),
-  customerName: z.string().trim().min(2).max(120),
-  customerPhone: z.string().trim().min(10).max(32),
-  claimText: z.string().trim().min(5).max(4000),
-})
+const submitSchema = z
+  .object({
+    tenantSlug: z.string().min(1).max(64),
+    customerName: z.string().trim().min(2).max(120),
+    customerPhone: z.string().trim().min(10).max(32),
+    claimText: z.string().trim().min(5).max(4000),
+    preferredChannel: z.enum(['sms', 'email']).default('sms'),
+    customerEmail: z.string().email().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.preferredChannel === 'email' && !data.customerEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Email is required when preferred channel is email.',
+        path: ['customerEmail'],
+      })
+    }
+  })
 
 export const submitTicket = onCall({ cors: true }, async (request) => {
   try {
@@ -24,7 +36,14 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
   if (!parsed.success) {
     throw new HttpsError('invalid-argument', parsed.error.issues[0]?.message ?? 'Invalid input')
   }
-  const { tenantSlug, customerName, customerPhone, claimText } = parsed.data
+  const {
+    tenantSlug,
+    customerName,
+    customerPhone,
+    claimText,
+    preferredChannel,
+    customerEmail: inputEmail,
+  } = parsed.data
 
   const digits = customerPhone.replace(/\D/g, '')
   if (digits.length < 10) {
@@ -51,10 +70,11 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
   const trackingToken = generateTrackingToken()
   const customerUid =
     request.auth?.uid && !request.auth.token.role ? request.auth.uid : null
-  const customerEmail =
+  const authEmail =
     customerUid && typeof request.auth?.token.email === 'string'
       ? request.auth.token.email.toLowerCase()
       : null
+  const customerEmail = (inputEmail?.toLowerCase() ?? authEmail) || null
   const ticket: Ticket = {
     id: ticketRef.id,
     tenantId: tenant.id,
@@ -63,6 +83,7 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
     customerPhone,
     customerUid,
     customerEmail,
+    preferredChannel,
     claimText,
     summary: claimText.slice(0, 80),
     departmentId: '',
@@ -125,6 +146,8 @@ export const submitTicket = onCall({ cors: true }, async (request) => {
     ],
     trackingToken,
     pendingCustomerConfirmation: false,
+    preferredChannel,
+    canSubmitCsat: false,
   })
 
   return { displayId, ticketId: ticket.id, tenantSlug: tenant.subdomain, trackingToken }

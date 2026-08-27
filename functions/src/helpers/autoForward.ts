@@ -101,6 +101,7 @@ export async function autoForwardUnopenedTicket(input: {
     hours: slaHours,
     createdAt: now,
     read: false,
+    status: 'open',
   })
 
   await rebuildProjection(tenantId, ticket.id)

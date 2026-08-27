@@ -21,3 +21,17 @@ export { confirmTicketResolution } from './callables/confirmTicketResolution'
 export { reopenTicket } from './callables/reopenTicket'
 export { updateTicketOps } from './callables/updateTicketOps'
 export { markCustomerReplyRead } from './callables/markCustomerReplyRead'
+export { requestTrackingOtp } from './callables/requestTrackingOtp'
+export { verifyTrackingOtp } from './callables/verifyTrackingOtp'
+export {
+  createAttachmentUploadUrl,
+  finalizeAttachment,
+  listTicketAttachments,
+  createAttachmentDownloadUrl,
+} from './callables/attachments'
+export {
+  acknowledgeManagerAlert,
+  assignManagerAlert,
+  resolveManagerAlert,
+} from './callables/managerAlertActions'
+export { submitTicketCsat } from './callables/submitTicketCsat'

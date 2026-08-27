@@ -23,6 +23,14 @@
         { "fieldPath": "customerUid", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trackingOtps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "displayId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

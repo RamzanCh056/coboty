@@ -2,7 +2,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { db } from '../helpers/admin'
 import { classifyClaim } from '../helpers/classify'
 import { appendHistory, rebuildProjection } from '../helpers/projection'
-import { sendCustomerSms } from '../helpers/sms'
+import { notifyCustomer } from '../helpers/email'
 import { receivedSms } from '../helpers/templates'
 import type { Department, Ticket } from '../types'
 
@@ -70,15 +70,19 @@ export const onTicketCreated = onDocumentCreated(
       timestamp: now,
     })
 
-    await sendCustomerSms({
-      tenantId,
-      ticketId,
-      toPhone: ticket.customerPhone,
+    await notifyCustomer({
+      ticket: {
+        ...ticket,
+        departmentId: classification.departmentId,
+        summary: classification.summary,
+        priority: classification.priority,
+      },
       message: receivedSms(
         ticket.customerName.split(' ')[0] ?? 'there',
         ticket.displayId,
         department.name,
       ),
+      emailSubject: `We received your case ${ticket.displayId}`,
     })
 
     await rebuildProjection(tenantId, ticketId)

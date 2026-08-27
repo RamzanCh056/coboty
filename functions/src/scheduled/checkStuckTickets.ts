@@ -1,12 +1,14 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { onCall } from 'firebase-functions/v2/https'
 import { db } from '../helpers/admin'
-import { appendHistory, rebuildProjection } from '../helpers/projection'
 import {
   autoForwardUnopenedTicket,
   unopenedSlaHoursFromTenant,
+  writeManagerAlert,
 } from '../helpers/autoForward'
 import { assertManagerOrAdmin, requireStaffActor } from '../helpers/auth'
+import { notifyCustomer } from '../helpers/email'
+import { appendHistory, rebuildProjection } from '../helpers/projection'
 import type { StaffUser, Tenant, Ticket } from '../types'
 
 const STUCK_MS = 24 * 60 * 60 * 1000
@@ -90,6 +92,71 @@ async function flagLongStuckTickets() {
   }
 }
 
+async function checkMissedPromises() {
+  const nowIso = new Date().toISOString()
+  const tenants = await db.collection('tenants').get()
+
+  for (const tenantDoc of tenants.docs) {
+    const ticketsSnap = await db.collection('tenants').doc(tenantDoc.id).collection('tickets').get()
+
+    for (const ticketDoc of ticketsSnap.docs) {
+      const ticket = { id: ticketDoc.id, ...ticketDoc.data() } as Ticket
+      if (ticket.status === 'solved') continue
+      if (!ticket.promisedResponseAt) continue
+      if (ticket.promisedResponseAt >= nowIso) continue
+      if (ticket.lastMissedPromiseAlertAt === ticket.promisedResponseAt) continue
+
+      const now = new Date().toISOString()
+      const hoursLate = Math.max(
+        1,
+        Math.round((Date.now() - new Date(ticket.promisedResponseAt).getTime()) / 3_600_000),
+      )
+
+      await ticketDoc.ref.update({
+        isStuck: true,
+        lastMissedPromiseAlertAt: ticket.promisedResponseAt,
+        updatedAt: now,
+      })
+
+      await writeManagerAlert(tenantDoc.id, {
+        tenantId: tenantDoc.id,
+        ticketId: ticket.id,
+        displayId: ticket.displayId,
+        type: 'missed_promise',
+        message: `Promised response time passed for ${ticket.displayId}.`,
+        fromName: 'System',
+        toName: null,
+        hours: hoursLate,
+        createdAt: now,
+        read: false,
+        status: 'open',
+      })
+
+      await appendHistory(tenantDoc.id, ticket.id, {
+        action: 'note',
+        actor: 'System',
+        note: 'We missed our promised response time and are following up.',
+        visibleToCustomer: true,
+        timestamp: now,
+      })
+
+      const notifyTicket = {
+        ...ticket,
+        isStuck: true,
+        lastMissedPromiseAlertAt: ticket.promisedResponseAt,
+        updatedAt: now,
+      } as Ticket
+
+      await notifyCustomer({
+        ticket: notifyTicket,
+        message: `Hi ${ticket.customerName.split(' ')[0] ?? 'there'}, we missed our promised update for ${ticket.displayId}. We're prioritizing your case now.`,
+      })
+
+      await rebuildProjection(tenantDoc.id, ticket.id)
+    }
+  }
+}
+
 export async function runUnopenedSlaForAllTenants() {
   const tenants = await db.collection('tenants').get()
   let forwarded = 0
@@ -105,6 +172,7 @@ export async function runUnopenedSlaForAllTenants() {
 export const checkStuckTickets = onSchedule('every 5 minutes', async () => {
   await runUnopenedSlaForAllTenants()
   await flagLongStuckTickets()
+  await checkMissedPromises()
 })
 
 export const runUnopenedSlaCheck = onCall({ cors: true }, async (request) => {

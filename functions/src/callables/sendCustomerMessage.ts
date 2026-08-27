@@ -4,7 +4,7 @@ import { db } from '../helpers/admin'
 import { appendHistory, rebuildProjection } from '../helpers/projection'
 import { assertRateLimit } from '../helpers/sms'
 import { isTrackingToken } from '../helpers/trackingToken'
-import type { PublicTracking } from '../types'
+import type { ManagerAlert, PublicTracking } from '../types'
 
 const schema = z.object({
   trackingToken: z.string().min(3).max(48).optional(),
@@ -59,11 +59,33 @@ export const sendCustomerMessage = onCall({ cors: true }, async (request) => {
     .doc(projection.tenantId)
     .collection('tickets')
     .doc(projection.ticketId)
-    .update({ 
+    .update({
       updatedAt: now,
       waitingForCustomer: false,
-      hasUnreadCustomerReply: true
+      hasUnreadCustomerReply: true,
     })
+
+  const alertRef = db
+    .collection('tenants')
+    .doc(projection.tenantId)
+    .collection('managerAlerts')
+    .doc()
+
+  const alert: Omit<ManagerAlert, 'id'> = {
+    tenantId: projection.tenantId,
+    ticketId: projection.ticketId,
+    displayId: projection.displayId,
+    type: 'customer_reply',
+    message: `Customer replied on ${projection.displayId}`,
+    fromName: customerName ?? 'Customer',
+    toName: projection.assigneeName,
+    hours: 0,
+    createdAt: now,
+    read: false,
+    status: 'open',
+  }
+
+  await alertRef.set({ id: alertRef.id, ...alert })
 
   await rebuildProjection(projection.tenantId, projection.ticketId)
   return { ok: true }

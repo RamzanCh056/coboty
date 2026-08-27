@@ -45,13 +45,25 @@ export function Report() {
         trend: 'down',
         isGoodTrend: true,
       },
-      {
-        label: 'Satisfaction',
-        value: '—',
-        delta: 'CSAT surveys not configured yet',
-        trend: 'up',
-        isGoodTrend: true,
-      },
+      (() => {
+        const withCsat = tickets.filter(
+          (t) => typeof t.csatScore === 'number' && t.csatScore != null,
+        )
+        const avg =
+          withCsat.length === 0
+            ? null
+            : withCsat.reduce((sum, t) => sum + (t.csatScore as number), 0) / withCsat.length
+        return {
+          label: 'Satisfaction',
+          value: avg == null ? '—' : avg.toFixed(1),
+          delta:
+            withCsat.length === 0
+              ? 'No CSAT responses yet'
+              : `${withCsat.length} response${withCsat.length === 1 ? '' : 's'}`,
+          trend: 'up' as const,
+          isGoodTrend: true,
+        }
+      })(),
       {
         label: 'Needs attention rate',
         value: `${stuckRate}%`,

@@ -6,11 +6,21 @@ export type TicketPriority = 'low' | 'medium' | 'high' | 'critical'
 
 export type DepartmentSlug = 'repair' | 'finance' | 'sales' | 'logistics'
 
+export type PreferredChannel = 'sms' | 'email'
+
+export type ManagerAlertStatus = 'open' | 'acknowledged' | 'assigned' | 'resolved'
+
+export type ManagerAlertType =
+  | 'unopened_sla'
+  | 'customer_escalation'
+  | 'resolution_rejected'
+  | 'customer_reply'
+  | 'missed_promise'
+
 export interface TenantConfig {
   primaryColor: string
   logoInitial: string
   ticketPrefix: string
-  /** Hours an assigned ticket may sit unopened before auto-forward. Default 3. */
   unopenedSlaHours?: number
 }
 
@@ -45,22 +55,39 @@ export interface Department {
   routingKeywords: string[]
 }
 
+export interface TicketAttachment {
+  id: string
+  name: string
+  contentType: string
+  size: number
+  storagePath: string
+  uploadedBy: string
+  createdAt: string
+  visibleToCustomer: boolean
+}
+
+export interface PublicAttachmentMeta {
+  id: string
+  name: string
+  contentType: string
+  size: number
+  createdAt: string
+}
+
 export interface Ticket {
   id: string
   tenantId: string
   displayId: string
   customerName: string
   customerPhone: string
-  /** Set when submitted (or claimed) by a signed-in customer account. */
   customerUid?: string | null
   customerEmail?: string | null
+  preferredChannel?: PreferredChannel
   claimText: string
   summary: string
   departmentId: string
   status: TicketStatus
   assignedTo: string | null
-  assignedAt?: string | null
-  lastUnopenedSlaAt?: string | null
   priority: TicketPriority
   createdAt: string
   updatedAt: string
@@ -72,40 +99,13 @@ export interface Ticket {
   customerNextStep?: string | null
   promisedResponseAt?: string | null
   hasUnreadCustomerReply?: boolean
-}
-
-export interface ManagerAlert {
-  id: string
-  tenantId: string
-  ticketId: string
-  displayId: string
-  type: 'unopened_sla' | 'customer_escalation' | 'resolution_rejected' | 'customer_reply'
-  message: string
-  fromName: string
-  toName: string | null
-  hours: number
-  createdAt: string
-  read: boolean
-}
-
-export interface CustomerAccount {
-  uid: string
-  email: string
-  name: string
-}
-
-export interface CustomerTicketSummary {
-  ticketId: string
-  tenantId: string
-  tenantSlug: string
-  tenantName: string
-  displayId: string
-  trackingToken?: string
-  status: TicketStatus
-  summary: string
-  updatedAt: string
-  createdAt: string
-  isStuck: boolean
+  resolutionEvidence?: string | null
+  csatScore?: number | null
+  csatComment?: string | null
+  csatAt?: string | null
+  lastMissedPromiseAlertAt?: string | null
+  assignedAt?: string | null
+  lastUnopenedSlaAt?: string | null
 }
 
 export type TicketAction =
@@ -124,6 +124,8 @@ export type TicketAction =
   | 'resolution_rejected'
   | 'ops_update'
   | 'awaiting_confirmation'
+  | 'csat'
+  | 'attachment'
 
 export interface TicketHistoryEntry {
   id: string
@@ -142,7 +144,7 @@ export interface Notification {
   id: string
   ticketId: string
   tenantId: string
-  channel: 'sms' | 'whatsapp'
+  channel: 'sms' | 'whatsapp' | 'email'
   message: string
   sentAt: string
   status: 'delivered' | 'sent' | 'failed' | 'skipped'
@@ -151,7 +153,7 @@ export interface Notification {
 export interface BillingEvent {
   id: string
   tenantId: string
-  eventType: 'ticket_created' | 'sms_sent' | 'ai_classification'
+  eventType: 'ticket_created' | 'sms_sent' | 'ai_classification' | 'email_sent'
   quantity: number
   timestamp: string
 }
@@ -161,6 +163,25 @@ export type TakeoverReason =
   | 'wrong_department'
   | 'customer_escalated'
   | 'shift_change'
+
+export interface ManagerAlert {
+  id: string
+  tenantId: string
+  ticketId: string
+  displayId: string
+  type: ManagerAlertType
+  message: string
+  fromName: string
+  toName: string | null
+  hours: number
+  createdAt: string
+  read: boolean
+  status: ManagerAlertStatus
+  assignedToStaffId?: string | null
+  acknowledgedAt?: string | null
+  resolvedAt?: string | null
+  resolvedBy?: string | null
+}
 
 /** Sanitized public projection — no phone or raw claim text. */
 export interface PublicTracking {
@@ -188,6 +209,11 @@ export interface PublicTracking {
   promisedResponseAt?: string | null
   whatHappensNext?: string | null
   pendingCustomerConfirmation?: boolean
+  preferredChannel?: PreferredChannel
+  resolutionEvidence?: string | null
+  attachments?: PublicAttachmentMeta[]
+  csatScore?: number | null
+  canSubmitCsat?: boolean
 }
 
 export interface PublicHistoryItem {
@@ -219,4 +245,24 @@ export const nextStatusMap: Record<TicketStatus, TicketStatus | null> = {
   calling: 'awaiting_confirmation',
   awaiting_confirmation: 'solved',
   solved: null,
+}
+
+export interface CustomerAccount {
+  uid: string
+  email: string
+  name: string
+}
+
+export interface CustomerTicketSummary {
+  ticketId: string
+  tenantId: string
+  tenantSlug: string
+  tenantName: string
+  displayId: string
+  trackingToken?: string
+  status: TicketStatus
+  summary: string
+  updatedAt: string
+  createdAt: string
+  isStuck: boolean
 }

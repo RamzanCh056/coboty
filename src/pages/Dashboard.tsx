@@ -6,16 +6,42 @@ import { SummaryCard } from '../components/dashboard/SummaryCard'
 import { DepartmentFilters } from '../components/dashboard/DepartmentFilters'
 import { TicketRow } from '../components/dashboard/TicketRow'
 import { TicketDetailModal } from '../components/dashboard/TicketDetailModal'
+import { ResolutionEvidenceModal } from '../components/dashboard/ResolutionEvidenceModal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
+import { Button } from '../components/ui/Button'
+import { Select } from '../components/ui/Input'
 import { getStaffDepartment, catalogDepartment, catalogStaffMember } from '../data/catalog'
-import type { Ticket, TakeoverReason } from '../data/types'
+import type { ManagerAlert, ManagerAlertStatus, Ticket, TakeoverReason } from '../data/types'
 import { useAppData } from '../context/AppData'
 import { subscribeTicketHistory } from '../lib/firebase/data'
-import { Select } from '../components/ui/Input'
+import { cn } from '../lib/cn'
 
 type SummaryFilter = 'new' | 'mine' | 'stuck' | 'replies' | null
 type SortMode = 'needs_attention' | 'oldest' | 'newest' | 'recently_updated'
+type AlertFilter = 'open' | 'active' | 'resolved' | 'all'
+
+function alertMatchesFilter(alert: ManagerAlert, filter: AlertFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'open') return alert.status === 'open'
+  if (filter === 'resolved') return alert.status === 'resolved'
+  return alert.status === 'acknowledged' || alert.status === 'assigned'
+}
+
+function alertStatusLabel(status: ManagerAlertStatus): string {
+  switch (status) {
+    case 'open':
+      return 'Open'
+    case 'acknowledged':
+      return 'Acknowledged'
+    case 'assigned':
+      return 'Assigned'
+    case 'resolved':
+      return 'Resolved'
+    default:
+      return status
+  }
+}
 
 export function Dashboard() {
   const {
@@ -36,6 +62,9 @@ export function Dashboard() {
     historyForTicket,
     staffSessionId,
     loadTicketHistory,
+    acknowledgeManagerAlert,
+    assignManagerAlert,
+    resolveManagerAlert,
   } = useAppData()
 
   const isManager = role === 'manager' || role === 'admin'
@@ -49,6 +78,10 @@ export function Dashboard() {
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null)
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>('open')
+  const [alertAssignId, setAlertAssignId] = useState<Record<string, string>>({})
+  const [busyAlertId, setBusyAlertId] = useState<string | null>(null)
+  const [evidenceTicket, setEvidenceTicket] = useState<Ticket | null>(null)
 
   useEffect(() => {
     setDepartmentFilter(isManager ? null : (homeDepartment?.id ?? null))
@@ -82,6 +115,11 @@ export function Dashboard() {
       replies: tickets.filter((t) => t.hasUnreadCustomerReply).length,
     }),
     [tickets, currentUser],
+  )
+
+  const filteredAlerts = useMemo(
+    () => managerAlerts.filter((a) => alertMatchesFilter(a, alertFilter)),
+    [managerAlerts, alertFilter],
   )
 
   const filteredTickets = useMemo(() => {
@@ -159,11 +197,32 @@ export function Dashboard() {
     }
   }
 
+  async function runAlertAction(alertId: string, fn: () => Promise<void>) {
+    setActionError('')
+    setBusyAlertId(alertId)
+    try {
+      await fn()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Alert action failed.')
+    } finally {
+      setBusyAlertId(null)
+    }
+  }
+
   function openTicket(ticket: Ticket) {
     setActiveTicketId(ticket.id)
     if (ticket.hasUnreadCustomerReply) {
       void markCustomerReplyRead(ticket.id)
     }
+  }
+
+  function openTicketFromAlert(alert: ManagerAlert) {
+    const ticket = tickets.find((t) => t.id === alert.ticketId)
+    if (ticket) {
+      openTicket(ticket)
+      return
+    }
+    setActiveTicketId(alert.ticketId)
   }
 
   function handlePrimaryAction(ticket: Ticket) {
@@ -176,7 +235,7 @@ export function Dashboard() {
     } else if (ticket.status === 'assigned' || ticket.status === 'opened') {
       void runAction(ticket.id, () => assignTicket(ticket.id, 'will_call'))
     } else if (ticket.status === 'calling') {
-      void runAction(ticket.id, () => assignTicket(ticket.id, 'mark_solved'))
+      setEvidenceTicket(ticket)
     }
   }
 
@@ -191,6 +250,15 @@ export function Dashboard() {
     })
   }
 
+  function handleEvidenceConfirm(evidence: string) {
+    if (!evidenceTicket) return
+    const ticket = evidenceTicket
+    void runAction(ticket.id, async () => {
+      await assignTicket(ticket.id, 'mark_solved', evidence)
+      setEvidenceTicket(null)
+    })
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-page">
       <TopBar tenant={currentTenant} user={currentUser} query={query} onQueryChange={setQuery} />
@@ -202,14 +270,139 @@ export function Dashboard() {
           </p>
         )}
 
-        {isManager && managerAlerts.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-card border border-status-stuck-bg bg-status-stuck-bg/30 px-4 py-3">
-            <p className="text-sm font-medium text-status-stuck-text">Manager alerts</p>
-            {managerAlerts.slice(0, 4).map((alert) => (
-              <p key={alert.id} className="text-sm text-text-secondary">
-                {alert.message}
-              </p>
-            ))}
+        {isManager && (
+          <div className="rounded-card-lg border border-border bg-surface px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-base font-medium text-text-primary">Escalation inbox</p>
+                <p className="mt-0.5 text-sm text-text-secondary">
+                  Acknowledge, assign, or resolve manager alerts.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { id: 'open', label: 'Open' },
+                    { id: 'active', label: 'Active' },
+                    { id: 'resolved', label: 'Resolved' },
+                    { id: 'all', label: 'All' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setAlertFilter(opt.id)}
+                    className={cn(
+                      'focus-ring rounded-control px-2.5 py-1 text-xs font-medium transition-colors duration-150 ease-out',
+                      alertFilter === opt.id
+                        ? 'bg-accent text-text-inverse'
+                        : 'bg-page text-text-secondary hover:text-text-primary',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {filteredAlerts.length === 0 ? (
+              <p className="mt-4 text-sm text-text-tertiary">No alerts in this view.</p>
+            ) : (
+              <ul className="mt-4 flex flex-col gap-3">
+                {filteredAlerts.map((alert) => {
+                  const assignValue = alertAssignId[alert.id] ?? ''
+                  const busy = busyAlertId === alert.id
+                  return (
+                    <li
+                      key={alert.id}
+                      className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3 sm:flex-row sm:items-start sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="focus-ring rounded-control text-sm font-medium text-text-primary underline-offset-2 hover:underline"
+                            onClick={() => openTicketFromAlert(alert)}
+                          >
+                            {alert.displayId}
+                          </button>
+                          <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+                            {alert.type.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-text-tertiary">
+                            {alertStatusLabel(alert.status)}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-sm text-text-secondary">{alert.message}</p>
+                      </div>
+                      {alert.status !== 'resolved' && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {alert.status === 'open' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() =>
+                                void runAlertAction(alert.id, () =>
+                                  acknowledgeManagerAlert(alert.id),
+                                )
+                              }
+                            >
+                              Ack
+                            </Button>
+                          )}
+                          {(alert.status === 'open' ||
+                            alert.status === 'acknowledged' ||
+                            alert.status === 'assigned') && (
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={assignValue}
+                                onChange={(e) =>
+                                  setAlertAssignId((prev) => ({
+                                    ...prev,
+                                    [alert.id]: e.target.value,
+                                  }))
+                                }
+                                className="min-w-[9rem]"
+                              >
+                                <option value="">Staff…</option>
+                                {staff.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </Select>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy || !assignValue}
+                                onClick={() =>
+                                  void runAlertAction(alert.id, () =>
+                                    assignManagerAlert(alert.id, assignValue),
+                                  )
+                                }
+                              >
+                                Assign
+                              </Button>
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() =>
+                              void runAlertAction(alert.id, () => resolveManagerAlert(alert.id))
+                            }
+                          >
+                            Resolve
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
         )}
 
@@ -334,6 +527,14 @@ export function Dashboard() {
         onUpdateOps={(ticket, patch) =>
           void runAction(ticket.id, () => updateTicketOps({ ticketId: ticket.id, ...patch }))
         }
+      />
+
+      <ResolutionEvidenceModal
+        open={evidenceTicket !== null}
+        displayId={evidenceTicket?.displayId ?? null}
+        busy={evidenceTicket ? busyTicketId === evidenceTicket.id : false}
+        onClose={() => setEvidenceTicket(null)}
+        onConfirm={handleEvidenceConfirm}
       />
     </div>
   )

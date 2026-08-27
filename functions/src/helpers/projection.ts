@@ -3,6 +3,7 @@ import { expectedTiming, statusSentence } from './status'
 import { ensureTicketTrackingToken } from './trackingToken'
 import type {
   Department,
+  PublicAttachmentMeta,
   PublicHistoryItem,
   PublicTracking,
   StaffUser,
@@ -10,6 +11,34 @@ import type {
   Ticket,
   TicketHistoryEntry,
 } from '../types'
+
+async function loadCustomerVisibleAttachments(
+  tenantId: string,
+  ticketId: string,
+): Promise<PublicAttachmentMeta[]> {
+  const snap = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('tickets')
+    .doc(ticketId)
+    .collection('attachments')
+    .where('visibleToCustomer', '==', true)
+    .limit(20)
+    .get()
+
+  return snap.docs
+    .filter((d) => d.data().finalized !== false)
+    .map((d) => {
+      const data = d.data()
+      return {
+        id: d.id,
+        name: (data.name as string) ?? '',
+        contentType: (data.contentType as string) ?? '',
+        size: typeof data.size === 'number' ? data.size : 0,
+        createdAt: (data.createdAt as string) ?? '',
+      } satisfies PublicAttachmentMeta
+    })
+}
 
 export async function syncPublicTracking(input: {
   tenant: Tenant
@@ -36,7 +65,9 @@ export async function syncPublicTracking(input: {
 
   // Ensure the ticket has a tracking token
   const trackingToken = await ensureTicketTrackingToken(input.ticket)
-  
+
+  const attachments = await loadCustomerVisibleAttachments(input.tenant.id, input.ticket.id)
+
   const projection: PublicTracking = {
     displayId: input.ticket.displayId,
     tenantId: input.tenant.id,
@@ -62,11 +93,22 @@ export async function syncPublicTracking(input: {
     promisedResponseAt: input.ticket.promisedResponseAt,
     whatHappensNext: input.ticket.customerNextStep || statusSentence(input.ticket.status, firstName),
     pendingCustomerConfirmation: input.ticket.status === 'awaiting_confirmation',
+    preferredChannel: input.ticket.preferredChannel,
+    attachments,
+    canSubmitCsat: input.ticket.status === 'solved' && !input.ticket.csatScore,
+  }
+
+  if (input.ticket.resolutionEvidence) {
+    projection.resolutionEvidence = input.ticket.resolutionEvidence
+  }
+
+  if (input.ticket.csatScore != null) {
+    projection.csatScore = input.ticket.csatScore
   }
 
   // Write projection keyed by trackingToken
   await db.collection('publicTracking').doc(trackingToken).set(projection)
-  
+
   // Clean up legacy projection by displayId if it exists and differs from token
   const legacyProjectionRef = db.collection('publicTracking').doc(input.ticket.displayId)
   const legacySnap = await legacyProjectionRef.get()

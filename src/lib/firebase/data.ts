@@ -105,6 +105,8 @@ export async function callSubmitTicket(input: {
   customerName: string
   customerPhone: string
   claimText: string
+  preferredChannel?: 'sms' | 'email'
+  customerEmail?: string
 }): Promise<{ displayId: string; ticketId: string; tenantSlug: string; trackingToken: string }> {
   const fn = httpsCallable<
     typeof input,
@@ -191,6 +193,7 @@ export async function callAssignTicket(input: {
   ticketId: string
   sessionId?: string
   action?: 'assign_to_me' | 'will_call' | 'mark_solved' | 'mark_opened'
+  resolutionEvidence?: string
 }): Promise<{ ok: boolean; status: string; assignedTo: string | null }> {
   const fn = httpsCallable<typeof input, { ok: boolean; status: string; assignedTo: string | null }>(
     functions,
@@ -300,4 +303,154 @@ export async function callClaimTicket(input: {
     { ok: boolean; displayId: string; tenantSlug: string }
   >(functions, 'claimTicket')
   return (await fn(input)).data
+}
+
+export async function callRequestTrackingOtp(input: {
+  displayId: string
+  customerPhone: string
+  tenantSlug?: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'requestTrackingOtp')
+  return (await fn(input)).data
+}
+
+export async function callVerifyTrackingOtp(input: {
+  displayId: string
+  customerPhone: string
+  code: string
+  tenantSlug?: string
+}): Promise<{ trackingToken: string; tenantSlug: string; displayId: string; ticketId: string }> {
+  const fn = httpsCallable<
+    typeof input,
+    { trackingToken: string; tenantSlug: string; displayId: string; ticketId: string }
+  >(functions, 'verifyTrackingOtp')
+  return (await fn(input)).data
+}
+
+export async function callSubmitTicketCsat(input: {
+  trackingToken: string
+  score: number
+  comment?: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'submitTicketCsat')
+  return (await fn(input)).data
+}
+
+export async function callCreateAttachmentUploadUrl(input: {
+  sessionId?: string
+  trackingToken?: string
+  tenantId?: string
+  ticketId?: string
+  fileName: string
+  contentType: string
+  size: number
+}): Promise<{ uploadUrl: string; attachmentId: string; storagePath: string }> {
+  const fn = httpsCallable<
+    typeof input,
+    { uploadUrl: string; attachmentId: string; storagePath: string }
+  >(functions, 'createAttachmentUploadUrl')
+  return (await fn(input)).data
+}
+
+export async function callFinalizeAttachment(input: {
+  sessionId?: string
+  trackingToken?: string
+  tenantId?: string
+  ticketId?: string
+  attachmentId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'finalizeAttachment')
+  return (await fn(input)).data
+}
+
+export async function callListTicketAttachments(input: {
+  sessionId?: string
+  trackingToken?: string
+  tenantId?: string
+  ticketId?: string
+}): Promise<{
+  attachments: {
+    id: string
+    name: string
+    contentType: string
+    size: number
+    createdAt: string
+    visibleToCustomer?: boolean
+  }[]
+}> {
+  const fn = httpsCallable<typeof input, { attachments: never[] }>(functions, 'listTicketAttachments')
+  return (await fn(input)).data
+}
+
+export async function callCreateAttachmentDownloadUrl(input: {
+  sessionId?: string
+  trackingToken?: string
+  tenantId?: string
+  ticketId?: string
+  attachmentId: string
+}): Promise<{ downloadUrl: string }> {
+  const fn = httpsCallable<typeof input, { downloadUrl: string }>(
+    functions,
+    'createAttachmentDownloadUrl',
+  )
+  return (await fn(input)).data
+}
+
+export async function callAcknowledgeManagerAlert(input: {
+  sessionId?: string
+  tenantId: string
+  alertId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'acknowledgeManagerAlert')
+  return (await fn(input)).data
+}
+
+export async function callAssignManagerAlert(input: {
+  sessionId?: string
+  tenantId: string
+  alertId: string
+  assignedToStaffId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'assignManagerAlert')
+  return (await fn(input)).data
+}
+
+export async function callResolveManagerAlert(input: {
+  sessionId?: string
+  tenantId: string
+  alertId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'resolveManagerAlert')
+  return (await fn(input)).data
+}
+
+export async function uploadTicketAttachment(params: {
+  file: File
+  sessionId?: string
+  trackingToken?: string
+  tenantId?: string
+  ticketId?: string
+}): Promise<void> {
+  const { uploadUrl, attachmentId } = await callCreateAttachmentUploadUrl({
+    sessionId: params.sessionId,
+    trackingToken: params.trackingToken,
+    tenantId: params.tenantId,
+    ticketId: params.ticketId,
+    fileName: params.file.name,
+    contentType: params.file.type || 'application/octet-stream',
+    size: params.file.size,
+  })
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': params.file.type || 'application/octet-stream' },
+    body: params.file,
+  })
+  if (!put.ok) throw new Error('Upload failed. Try again.')
+  await callFinalizeAttachment({
+    sessionId: params.sessionId,
+    trackingToken: params.trackingToken,
+    tenantId: params.tenantId,
+    ticketId: params.ticketId,
+    attachmentId,
+  })
 }

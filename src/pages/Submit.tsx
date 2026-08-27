@@ -5,10 +5,16 @@ import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAppData } from '../context/AppData'
+import type { PreferredChannel } from '../data/types'
+import { cn } from '../lib/cn'
 
 function isValidPhone(value: string): boolean {
   const digits = value.replace(/\D/g, '')
   return digits.length >= 10
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
 export function Submit() {
@@ -18,6 +24,8 @@ export function Submit() {
 
   const [customerName, setCustomerName] = useState(customerAccount?.name ?? '')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [preferredChannel, setPreferredChannel] = useState<PreferredChannel>('sms')
+  const [customerEmail, setCustomerEmail] = useState(customerAccount?.email ?? '')
   const [claimText, setClaimText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -34,8 +42,12 @@ export function Submit() {
     )
   }
 
+  const emailOk = preferredChannel !== 'email' || isValidEmail(customerEmail)
   const canSubmit =
-    customerName.trim().length > 1 && isValidPhone(customerPhone) && claimText.trim().length > 0
+    customerName.trim().length > 1 &&
+    isValidPhone(customerPhone) &&
+    claimText.trim().length > 0 &&
+    emailOk
 
   async function handleSubmit() {
     if (!tenantSlug) return
@@ -47,6 +59,10 @@ export function Submit() {
       setError('Enter a phone number so we can text you updates.')
       return
     }
+    if (preferredChannel === 'email' && !isValidEmail(customerEmail)) {
+      setError('Enter a valid email address for updates.')
+      return
+    }
 
     setError('')
     setSubmitting(true)
@@ -56,6 +72,9 @@ export function Submit() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         claimText: claimText.trim(),
+        preferredChannel,
+        customerEmail:
+          preferredChannel === 'email' ? customerEmail.trim() : customerEmail.trim() || undefined,
       })
       const trackId = result.trackingToken || result.displayId
       navigate(`/${result.tenantSlug}/track/${trackId}`, {
@@ -77,7 +96,11 @@ export function Submit() {
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <LoadingDots />
             <p className="text-lg font-medium text-text-primary">Got it — creating your ticket…</p>
-            <p className="text-sm text-text-secondary">We'll text updates to {customerPhone.trim()}.</p>
+            <p className="text-sm text-text-secondary">
+              {preferredChannel === 'email'
+                ? `We'll email updates to ${customerEmail.trim()}.`
+                : `We'll text updates to ${customerPhone.trim()}.`}
+            </p>
           </div>
         ) : (
           <>
@@ -122,9 +145,55 @@ export function Submit() {
                   autoComplete="tel"
                 />
                 <span className="text-xs text-text-tertiary">
-                  We'll text your ticket number here. You'll also need this number to look up your case.
+                  You'll need this number to look up your case.
                 </span>
               </label>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-text-secondary">Preferred updates</span>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      { value: 'sms', label: 'Text' },
+                      { value: 'email', label: 'Email' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setPreferredChannel(opt.value)
+                        setError('')
+                      }}
+                      className={cn(
+                        'focus-ring h-9 flex-1 rounded-control border text-sm font-medium transition-colors duration-150 ease-out',
+                        preferredChannel === opt.value
+                          ? 'border-accent bg-accent text-text-inverse'
+                          : 'border-border bg-surface text-text-secondary hover:border-border-strong hover:bg-page',
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {preferredChannel === 'email' && (
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium text-text-secondary">Email address</span>
+                  <Input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => {
+                      setCustomerEmail(e.target.value)
+                      setError('')
+                    }}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-text-secondary">What happened?</span>
@@ -139,6 +208,7 @@ export function Submit() {
                 />
                 <p className="text-xs text-text-tertiary">
                   Include what went wrong, when it started, and any reference numbers you already have.
+                  You can add photos on the tracking page.
                 </p>
               </div>
             </div>

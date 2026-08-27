@@ -2,8 +2,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { z } from 'zod'
 import { db } from '../helpers/admin'
 import { assertCanMutate, assertSameTenant, requireStaffActor } from '../helpers/auth'
+import { notifyCustomer } from '../helpers/email'
 import { rebuildProjection, appendHistory } from '../helpers/projection'
-import { sendCustomerSms } from '../helpers/sms'
 import { canTransition } from '../helpers/status'
 import { assignedSms, callingSms } from '../helpers/templates'
 import type { Ticket } from '../types'
@@ -14,6 +14,7 @@ const schema = z.object({
   sessionId: z.string().min(16).max(128).optional(),
   /** Optional next action intent inferred from current primary button. */
   action: z.enum(['assign_to_me', 'will_call', 'mark_solved', 'mark_opened']).optional(),
+  resolutionEvidence: z.string().trim().min(20).max(2000).optional(),
 })
 
 export const assignTicket = onCall(
@@ -25,7 +26,7 @@ export const assignTicket = onCall(
     assertCanMutate(claims.role)
     const parsed = schema.safeParse(request.data)
     if (!parsed.success) throw new HttpsError('invalid-argument', 'Invalid ticket action payload.')
-    const { tenantId, ticketId, action } = parsed.data
+    const { tenantId, ticketId, action, resolutionEvidence } = parsed.data
     assertSameTenant(claims, tenantId)
 
     const ticketRef = db.collection('tenants').doc(tenantId).collection('tickets').doc(ticketId)
@@ -94,12 +95,18 @@ export const assignTicket = onCall(
       note = `Contacting customer — ${actorName}.`
       sms = callingSms(customerFirst, ticket.displayId, actorFirst)
     } else if (intent === 'mark_solved') {
+      if (!resolutionEvidence || resolutionEvidence.trim().length < 20) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Resolution evidence is required (at least 20 characters).',
+        )
+      }
       if (!canTransition(ticket.status, 'awaiting_confirmation')) {
         throw new HttpsError('failed-precondition', `Cannot resolve from status ${ticket.status}.`)
       }
       nextStatus = 'awaiting_confirmation'
       historyAction = 'awaiting_confirmation'
-      note = `Marked resolved — waiting for customer confirmation.`
+      note = `Marked resolved — waiting for customer confirmation. ${resolutionEvidence.trim()}`
       sms = `Hi ${customerFirst}, we believe your case ${ticket.displayId} is resolved. Please confirm on your tracking page or let us know if you need more help.`
     }
 
@@ -113,6 +120,9 @@ export const assignTicket = onCall(
     if (intent === 'assign_to_me') {
       patch.assignedAt = now
     }
+    if (intent === 'mark_solved' && resolutionEvidence) {
+      patch.resolutionEvidence = resolutionEvidence.trim()
+    }
     await ticketRef.update(patch)
 
     await appendHistory(tenantId, ticketId, {
@@ -124,10 +134,9 @@ export const assignTicket = onCall(
     })
 
     if (sms) {
-      await sendCustomerSms({
-        tenantId,
-        ticketId,
-        toPhone: ticket.customerPhone,
+      const notifyTicket = { ...ticket, ...patch } as Ticket
+      await notifyCustomer({
+        ticket: notifyTicket,
         message: sms,
       })
     }

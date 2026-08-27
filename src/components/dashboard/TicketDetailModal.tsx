@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { DepartmentPill, StatusPill, WarningChip } from '../ui/Pill'
 import { Avatar } from '../ui/Avatar'
@@ -11,10 +11,25 @@ import type {
   TakeoverReason,
   TicketHistoryEntry,
 } from '../../data/types'
+import { useAppData } from '../../context/AppData'
+import {
+  callCreateAttachmentDownloadUrl,
+  callListTicketAttachments,
+  uploadTicketAttachment,
+} from '../../lib/firebase/data'
 import { getPrimaryAction } from '../../lib/ticketFlow'
 import { fullTimestamp } from '../../lib/format'
 import { cn } from '../../lib/cn'
-import { AlertTriangle, Lock, MessageSquare, Users } from 'lucide-react'
+import { AlertTriangle, Lock, MessageSquare, Paperclip, Users } from 'lucide-react'
+
+type StaffAttachment = {
+  id: string
+  name: string
+  contentType: string
+  size: number
+  createdAt: string
+  visibleToCustomer?: boolean
+}
 
 const reasonOptions: { value: TakeoverReason; label: string }[] = [
   { value: 'colleague_unavailable', label: 'Colleague unavailable' },
@@ -79,6 +94,7 @@ export function TicketDetailModal({
     },
   ) => void
 }) {
+  const { staffSessionId, currentTenantId } = useAppData()
   const [reason, setReason] = useState<TakeoverReason>('colleague_unavailable')
   const [note, setNote] = useState('')
   const [reassignTo, setReassignTo] = useState('')
@@ -86,6 +102,11 @@ export function TicketDetailModal({
   const [promisedAt, setPromisedAt] = useState('')
   const [waitingCustomer, setWaitingCustomer] = useState(false)
   const [waitingInternal, setWaitingInternal] = useState(false)
+  const [attachments, setAttachments] = useState<StaffAttachment[]>([])
+  const [attachmentsBusy, setAttachmentsBusy] = useState(false)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [attachError, setAttachError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!ticket) return
@@ -101,12 +122,86 @@ export function TicketDetailModal({
     ticket?.waitingForInternal,
   ])
 
+  useEffect(() => {
+    if (!open || !ticket || !staffSessionId || !currentTenantId) {
+      setAttachments([])
+      return
+    }
+    let cancelled = false
+    setAttachmentsBusy(true)
+    setAttachError('')
+    void callListTicketAttachments({
+      sessionId: staffSessionId,
+      tenantId: currentTenantId,
+      ticketId: ticket.id,
+    })
+      .then((result) => {
+        if (!cancelled) setAttachments(result.attachments ?? [])
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAttachError(err instanceof Error ? err.message : 'Could not load attachments.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAttachmentsBusy(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, ticket?.id, staffSessionId, currentTenantId])
+
   if (!ticket || !department) return null
 
   const smsPreview = buildSmsPreview(ticket, reason, currentUser, assignee)
   const primaryAction = !ticket.isStuck ? getPrimaryAction(ticket) : null
   const canReassign = currentUser.role === 'manager' || currentUser.role === 'admin'
   const reassignOptions = tenantStaff.filter((s) => s.id !== ticket.assignedTo)
+
+  async function refreshAttachments() {
+    if (!ticket || !staffSessionId || !currentTenantId) return
+    const result = await callListTicketAttachments({
+      sessionId: staffSessionId,
+      tenantId: currentTenantId,
+      ticketId: ticket.id,
+    })
+    setAttachments(result.attachments ?? [])
+  }
+
+  async function handleUpload(file: File) {
+    if (!ticket || !staffSessionId || !currentTenantId) return
+    setUploadBusy(true)
+    setAttachError('')
+    try {
+      await uploadTicketAttachment({
+        file,
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ticketId: ticket.id,
+      })
+      await refreshAttachments()
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setUploadBusy(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function handleDownload(attachmentId: string) {
+    if (!ticket || !staffSessionId || !currentTenantId) return
+    try {
+      const { downloadUrl } = await callCreateAttachmentDownloadUrl({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ticketId: ticket.id,
+        attachmentId,
+      })
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : 'Could not download file.')
+    }
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={ticket.displayId}>
@@ -134,8 +229,23 @@ export function TicketDetailModal({
             <p className="text-xs font-medium text-text-tertiary">Customer</p>
             <p className="text-sm font-medium text-text-primary">{ticket.customerName}</p>
             <p className="text-sm text-text-secondary">{ticket.customerPhone}</p>
+            {ticket.preferredChannel && (
+              <p className="text-sm text-text-secondary">
+                Preferred: {ticket.preferredChannel === 'email' ? 'Email' : 'Text'}
+                {ticket.customerEmail ? ` · ${ticket.customerEmail}` : ''}
+              </p>
+            )}
           </div>
         </div>
+
+        {ticket.resolutionEvidence && (
+          <div className="rounded-card border border-border bg-page px-3.5 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
+              Resolution evidence
+            </p>
+            <p className="mt-1.5 text-sm text-text-primary">{ticket.resolutionEvidence}</p>
+          </div>
+        )}
 
         {primaryAction && (
           <Button variant="outline" className="self-start" onClick={() => onPrimaryAction(ticket)}>
@@ -143,6 +253,53 @@ export function TicketDetailModal({
             {primaryAction.label}
           </Button>
         )}
+
+        <div className="flex flex-col gap-2 rounded-card border border-border bg-page px-3.5 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary">
+              <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+              Attachments
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={uploadBusy || !staffSessionId}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploadBusy ? 'Uploading…' : 'Upload'}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleUpload(file)
+              }}
+            />
+          </div>
+          {attachError && <p className="text-xs text-status-stuck-text">{attachError}</p>}
+          {attachmentsBusy ? (
+            <p className="text-sm text-text-tertiary">Loading…</p>
+          ) : attachments.length === 0 ? (
+            <p className="text-sm text-text-tertiary">No attachments yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {attachments.map((att) => (
+                <li
+                  key={att.id}
+                  className="flex items-center justify-between gap-2 border-b border-border pb-2 last:border-0 last:pb-0"
+                >
+                  <span className="truncate text-sm text-text-primary">{att.name}</span>
+                  <Button variant="ghost" size="sm" onClick={() => void handleDownload(att.id)}>
+                    Download
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         {onUpdateOps && ticket.status !== 'solved' && (
           <div className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3">

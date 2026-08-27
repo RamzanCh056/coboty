@@ -58,6 +58,7 @@ export const requestTicketUpdate = onCall({ cors: true }, async (request) => {
     hours: 0,
     createdAt: now,
     read: false,
+    status: 'open',
   }
 
   await alertRef.set({ id: alertRef.id, ...alert })

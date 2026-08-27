@@ -88,7 +88,19 @@ npm run test:rules   # requires Java for Firestore emulator
 ## Customer URLs
 
 - Submit: `https://<host>/fenwick/submit`
-- Track lookup: `https://<host>/fenwick/track`
+- Track lookup (OTP): `https://<host>/fenwick/track`
 - Track (private token): `https://<host>/fenwick/track/<48-char-hex-token>`
 
 Staff login: `/login` (email or username such as `manager`)
+
+## High-value features (2026)
+
+- Attachments via signed Storage URLs (images/PDF, 5MB)
+- SMS OTP before opening a tracking link
+- Missed-promise alerts in the 5-minute scheduler
+- Manager escalation inbox (ack / assign / resolve)
+- Preferred update channel: SMS or email (SendGrid optional)
+- Resolution evidence required before customer confirm
+- One-tap CSAT after confirmed close
+
+Secrets (in addition to Twilio): `SENDGRID_API_KEY`, `EMAIL_FROM` / `SENDGRID_FROM` for email updates.
