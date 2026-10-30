@@ -20,7 +20,7 @@ import {
 import { getPrimaryAction } from '../../lib/ticketFlow'
 import { fullTimestamp } from '../../lib/format'
 import { cn } from '../../lib/cn'
-import { AlertTriangle, Lock, MessageSquare, Paperclip, Users } from 'lucide-react'
+import { AlertTriangle, Lock, MessageSquare, Paperclip, Sparkles, Users } from 'lucide-react'
 
 type StaffAttachment = {
   id: string
@@ -94,10 +94,19 @@ export function TicketDetailModal({
     },
   ) => void
 }) {
-  const { staffSessionId, currentTenantId } = useAppData()
+  const { staffSessionId, currentTenantId, draftCustomerReply, sendStaffCustomerReply } =
+    useAppData()
   const [reason, setReason] = useState<TakeoverReason>('colleague_unavailable')
   const [note, setNote] = useState('')
   const [reassignTo, setReassignTo] = useState('')
+  const [aiDraft, setAiDraft] = useState('')
+  const [missingInfo, setMissingInfo] = useState<string[]>([])
+  const [aiUsedAi, setAiUsedAi] = useState(false)
+  const [aiChannel, setAiChannel] = useState<'sms' | 'email'>('sms')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiSendBusy, setAiSendBusy] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiSendResult, setAiSendResult] = useState<string | null>(null)
   const [nextStep, setNextStep] = useState('')
   const [promisedAt, setPromisedAt] = useState('')
   const [waitingCustomer, setWaitingCustomer] = useState(false)
@@ -114,12 +123,19 @@ export function TicketDetailModal({
     setPromisedAt(ticket.promisedResponseAt ? ticket.promisedResponseAt.slice(0, 16) : '')
     setWaitingCustomer(Boolean(ticket.waitingForCustomer))
     setWaitingInternal(Boolean(ticket.waitingForInternal))
+    setAiDraft('')
+    setMissingInfo([])
+    setAiUsedAi(false)
+    setAiChannel(ticket.preferredChannel === 'email' ? 'email' : 'sms')
+    setAiError(null)
+    setAiSendResult(null)
   }, [
     ticket?.id,
     ticket?.customerNextStep,
     ticket?.promisedResponseAt,
     ticket?.waitingForCustomer,
     ticket?.waitingForInternal,
+    ticket?.preferredChannel,
   ])
 
   useEffect(() => {
@@ -200,6 +216,45 @@ export function TicketDetailModal({
       window.open(downloadUrl, '_blank', 'noopener,noreferrer')
     } catch (err) {
       setAttachError(err instanceof Error ? err.message : 'Could not download file.')
+    }
+  }
+
+  async function handleDraftAi() {
+    if (!ticket) return
+    setAiBusy(true)
+    setAiError(null)
+    setAiSendResult(null)
+    try {
+      const result = await draftCustomerReply(ticket.id)
+      setAiDraft(result.draftMessage)
+      setMissingInfo(result.missingInfo)
+      setAiUsedAi(result.usedAi)
+      setAiChannel(result.preferredChannel)
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not draft reply.')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  async function handleSendAi() {
+    if (!ticket || aiDraft.trim().length < 8) return
+    setAiSendBusy(true)
+    setAiError(null)
+    setAiSendResult(null)
+    try {
+      const result = await sendStaffCustomerReply(ticket.id, aiDraft.trim(), aiUsedAi)
+      setAiSendResult(
+        result.status === 'sent'
+          ? `Sent via ${result.channel}.`
+          : result.status === 'skipped'
+            ? `Saved in history; ${result.channel} delivery skipped (provider not configured).`
+            : `Send failed on ${result.channel}. Check provider settings.`,
+      )
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not send reply.')
+    } finally {
+      setAiSendBusy(false)
     }
   }
 
@@ -351,6 +406,66 @@ export function TicketDetailModal({
             >
               Save case update
             </Button>
+          </div>
+        )}
+
+        {ticket.status !== 'solved' && (
+          <div className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                AI customer reply
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={aiBusy || aiSendBusy}
+                onClick={() => void handleDraftAi()}
+              >
+                {aiBusy ? 'Drafting…' : aiDraft ? 'Redraft' : 'Draft with AI'}
+              </Button>
+            </div>
+            <p className="text-xs text-text-tertiary">
+              Reviews the case, lists missing info, and drafts a reply. You edit and approve before
+              anything is sent ({aiChannel === 'email' ? 'email' : 'SMS'}).
+            </p>
+            {missingInfo.length > 0 && (
+              <div className="rounded-control border border-border bg-surface px-3 py-2">
+                <p className="text-xs font-medium text-text-tertiary">Missing info checklist</p>
+                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-sm text-text-primary">
+                  {missingInfo.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(aiDraft || aiBusy) && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-tertiary">
+                  Draft{aiUsedAi ? ' · AI' : ' · template fallback'} — edit before send
+                </span>
+                <Textarea
+                  value={aiDraft}
+                  onChange={(e) => setAiDraft(e.target.value)}
+                  className="min-h-28"
+                  placeholder="AI draft will appear here…"
+                  disabled={aiBusy}
+                />
+              </label>
+            )}
+            {aiError && <p className="text-xs text-status-stuck-text">{aiError}</p>}
+            {aiSendResult && <p className="text-xs text-text-secondary">{aiSendResult}</p>}
+            {aiDraft.trim().length >= 8 && (
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="primary"
+                  disabled={aiSendBusy || aiBusy}
+                  onClick={() => void handleSendAi()}
+                >
+                  {aiSendBusy ? 'Sending…' : `Approve & send via ${aiChannel === 'email' ? 'email' : 'SMS'}`}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

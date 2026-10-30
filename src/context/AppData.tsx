@@ -32,6 +32,8 @@ import {
   callRunUnopenedSlaCheck,
   callSubmitTicket,
   callTakeoverTicket,
+  callDraftCustomerReply,
+  callSendStaffCustomerReply,
   callUpdateTicketOps,
   callUpdateUnopenedSla,
   subscribeDepartments,
@@ -109,6 +111,18 @@ interface AppDataContextValue {
     customerNextStep?: string
     promisedResponseAt?: string
   }) => Promise<void>
+  draftCustomerReply: (ticketId: string) => Promise<{
+    draftMessage: string
+    missingInfo: string[]
+    usedAi: boolean
+    preferredChannel: 'sms' | 'email'
+    displayId: string
+  }>
+  sendStaffCustomerReply: (
+    ticketId: string,
+    message: string,
+    usedAiDraft?: boolean,
+  ) => Promise<{ channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }>
   markCustomerReplyRead: (ticketId: string) => Promise<void>
   acknowledgeManagerAlert: (alertId: string) => Promise<void>
   assignManagerAlert: (alertId: string, assignedToStaffId: string) => Promise<void>
@@ -560,6 +574,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [currentTenantId, staffSessionId, refreshStaffWorkspace],
   )
 
+  const draftCustomerReply = useCallback(
+    async (ticketId: string) => {
+      if (!currentTenantId || !staffSessionId) throw new Error('Not signed in to a tenant.')
+      return callDraftCustomerReply({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ticketId,
+      })
+    },
+    [currentTenantId, staffSessionId],
+  )
+
   const markCustomerReplyRead = useCallback(
     async (ticketId: string) => {
       if (!currentTenantId || !staffSessionId) return
@@ -626,6 +652,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [staffSessionId, setTicketHistory],
   )
 
+  const sendStaffCustomerReply = useCallback(
+    async (ticketId: string, message: string, usedAiDraft?: boolean) => {
+      if (!currentTenantId || !staffSessionId) throw new Error('Not signed in to a tenant.')
+      const result = await callSendStaffCustomerReply({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        ticketId,
+        message,
+        usedAiDraft,
+      })
+      await refreshStaffWorkspace()
+      await loadTicketHistory(ticketId)
+      return { channel: result.channel, status: result.status }
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace, loadTicketHistory],
+  )
+
   const history = useMemo(() => Object.values(historyByTicket).flat(), [historyByTicket])
 
   const historyForTicket = useCallback(
@@ -662,6 +705,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       takeoverTicket,
       reassignTicket,
       updateTicketOps,
+      draftCustomerReply,
+      sendStaffCustomerReply,
       markCustomerReplyRead,
       acknowledgeManagerAlert,
       assignManagerAlert,
@@ -698,6 +743,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       takeoverTicket,
       reassignTicket,
       updateTicketOps,
+      draftCustomerReply,
+      sendStaffCustomerReply,
       markCustomerReplyRead,
       acknowledgeManagerAlert,
       assignManagerAlert,

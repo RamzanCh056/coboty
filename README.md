@@ -16,7 +16,7 @@ Multi-tenant customer claim tracking — Phase 2 Firebase backend
 
 1. Firebase project `cobotty` on the **Blaze (pay-as-you-go)** plan (required for Cloud Functions)
 2. Enable: Authentication (Email/Password), Cloud Firestore, Cloud Functions, Cloud Scheduler
-3. Node 20+ recommended for Functions runtime
+3. Node 22+ recommended for Functions runtime
 
 Upgrade billing: https://console.firebase.google.com/project/cobotty/usage/details
 
@@ -52,6 +52,12 @@ Set as runtime environment variables on deployed functions (or migrate to Secret
 - `TWILIO_FROM_NUMBER`
 
 If unset, classification falls back to keywords / first department and SMS sends are logged as `skipped`.
+AI customer-reply drafts also fall back to a template + heuristic missing-info checklist when Anthropic is unset.
+
+## AI customer reply (Phase 1)
+
+Staff open a ticket → **AI customer reply** → **Draft with AI** → edit → **Approve & send**.
+Nothing is sent until staff approve. Sends use the ticket’s preferred channel (SMS/email) via `notifyCustomer`, and write an audit note in history.
 
 ## Deploy
 

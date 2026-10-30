@@ -280,6 +280,44 @@ export async function callUpdateTicketOps(input: {
   return (await fn(input)).data
 }
 
+export async function callDraftCustomerReply(input: {
+  sessionId: string
+  tenantId: string
+  ticketId: string
+}): Promise<{
+  draftMessage: string
+  missingInfo: string[]
+  usedAi: boolean
+  preferredChannel: 'sms' | 'email'
+  displayId: string
+}> {
+  const fn = httpsCallable<
+    typeof input,
+    {
+      draftMessage: string
+      missingInfo: string[]
+      usedAi: boolean
+      preferredChannel: 'sms' | 'email'
+      displayId: string
+    }
+  >(functions, 'draftCustomerReply')
+  return (await fn(input)).data
+}
+
+export async function callSendStaffCustomerReply(input: {
+  sessionId: string
+  tenantId: string
+  ticketId: string
+  message: string
+  usedAiDraft?: boolean
+}): Promise<{ ok: boolean; channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }> {
+  const fn = httpsCallable<
+    typeof input,
+    { ok: boolean; channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }
+  >(functions, 'sendStaffCustomerReply')
+  return (await fn(input)).data
+}
+
 export async function callMarkCustomerReplyRead(input: {
   sessionId: string
   tenantId: string
