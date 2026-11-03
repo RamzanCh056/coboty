@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAppData } from '../context/AppData'
-import { catalogStaffMember } from '../data/catalog'
+import { catalogDepartment, catalogStaffMember } from '../data/catalog'
 import { cn } from '../lib/cn'
 import type { MetricCard, TeamRow, InsightCard } from '../data/report'
 
@@ -78,6 +78,11 @@ export function Report() {
     return staff.map((member) => {
       const mine = tickets.filter((t) => t.assignedTo === member.id)
       const solved = mine.filter((t) => t.status === 'solved')
+      const withCsat = solved.filter((t) => typeof t.csatScore === 'number')
+      const satisfaction =
+        withCsat.length === 0
+          ? 0
+          : withCsat.reduce((sum, t) => sum + (t.csatScore as number), 0) / withCsat.length
       const avg =
         solved.length === 0
           ? 0
@@ -91,7 +96,7 @@ export function Report() {
         ticketsSolved: solved.length,
         avgResponseHours: Math.round(avg * 10) / 10,
         reopenRate: 0,
-        satisfaction: 0,
+        satisfaction: Math.round(satisfaction * 10) / 10,
         blendedScore,
         badge: undefined,
         workloadNote:
@@ -111,9 +116,10 @@ export function Report() {
     const cards: InsightCard[] = []
     if (top) {
       const pct = tickets.length ? Math.round((top[1] / tickets.filter((t) => t.status !== 'solved').length) * 100) : 0
+      const deptName = catalogDepartment(top[0])?.name ?? top[0]
       cards.push({
         title: 'Current bottleneck',
-        description: `Department ${top[0]} holds ${top[1]} open tickets (${pct || 0}% of open volume).`,
+        description: `${deptName} holds ${top[1]} open tickets (${pct || 0}% of open volume).`,
         action: 'Rebalance assignments or add coverage on that team.',
       })
     } else {
@@ -147,7 +153,7 @@ export function Report() {
     <div className="flex min-h-screen flex-col bg-page">
       <TopBar tenant={currentTenant} user={currentUser} query={query} onQueryChange={setQuery} />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-7 px-4 py-5 sm:px-6 sm:py-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-medium text-text-primary">Monthly performance report</h1>
@@ -192,6 +198,11 @@ export function Report() {
                 <tbody>
                   {teamRows
                     .slice()
+                    .filter((row) => {
+                      if (!query.trim()) return true
+                      const staffMember = catalogStaffMember(row.staffId)
+                      return staffMember?.name.toLowerCase().includes(query.trim().toLowerCase())
+                    })
                     .sort((a, b) => b.blendedScore - a.blendedScore)
                     .map((row) => {
                       const staffMember = catalogStaffMember(row.staffId)
@@ -214,7 +225,9 @@ export function Report() {
                             {row.avgResponseHours}h
                           </td>
                           <td className="px-5 py-3 text-sm text-text-tertiary tabular-nums">—</td>
-                          <td className="px-5 py-3 text-sm text-text-tertiary tabular-nums">—</td>
+                          <td className="px-5 py-3 text-sm tabular-nums text-text-primary">
+                            {row.satisfaction > 0 ? row.satisfaction.toFixed(1) : '—'}
+                          </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2.5">
                               <div className="h-1.5 w-24 overflow-hidden rounded-full bg-page">

@@ -81,7 +81,7 @@ export function Login() {
   const company = currentTenant?.name ?? 'CoBotty'
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-stone-100">
+    <div className="relative min-h-screen overflow-hidden bg-page">
       <div
         className="absolute inset-0 bg-cover bg-[68%_center] md:bg-center"
         style={{ backgroundImage: "url('/cobotty-login-background.png')" }}
@@ -95,16 +95,16 @@ export function Login() {
 
       <main className="relative flex min-h-screen items-center justify-center px-5 py-10">
         <div className="w-full max-w-[420px]">
-          <Card className="border-white/80 bg-white/90 p-7 shadow-[0_28px_90px_-24px_rgba(24,24,27,0.5)] backdrop-blur-2xl sm:p-8">
+          <Card className="border-border/80 bg-surface/90 p-7 shadow-[0_28px_90px_-24px_rgba(24,24,27,0.5)] backdrop-blur-2xl sm:p-8">
             <div className="mb-7 flex flex-col items-center text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-950 text-base font-semibold text-white shadow-lg shadow-black/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-base font-semibold text-text-inverse shadow-lg shadow-black/20">
                 {logo}
               </div>
-              <p className="mt-3 text-base font-semibold tracking-tight text-zinc-950">{company}</p>
-              <p className="mt-1 text-xs text-zinc-500">Customer care, simplified</p>
+              <p className="mt-3 text-base font-semibold tracking-tight text-text-primary">{company}</p>
+              <p className="mt-1 text-xs text-text-secondary">Customer care, simplified</p>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-1 rounded-xl border border-zinc-200/80 bg-zinc-100/80 p-1">
+            <div className="mb-6 grid grid-cols-2 gap-1 rounded-xl border border-border bg-page/80 p-1">
               <SegmentButton
                 active={tab === 'staff'}
                 onClick={() => {
@@ -133,8 +133,8 @@ export function Login() {
 
             {tab === 'staff' ? (
               <>
-                <h2 className="text-xl font-semibold tracking-tight text-zinc-950">Welcome back</h2>
-                <p className="mt-1.5 text-sm text-zinc-500">
+                <h2 className="text-xl font-semibold tracking-tight text-text-primary">Welcome back</h2>
+                <p className="mt-1.5 text-sm text-text-secondary">
                   Enter your work email or username, and password.
                 </p>
 
@@ -161,7 +161,7 @@ export function Login() {
                   <Button
                     type="submit"
                     variant="primary"
-                    className="mt-1 h-11 w-full !bg-zinc-950 !text-white shadow-lg shadow-zinc-950/15 hover:!bg-zinc-800"
+                    className="mt-1 h-11 w-full !bg-accent !text-text-inverse shadow-lg shadow-black/15 hover:!bg-accent-hover"
                     disabled={busy}
                   >
                     {busy ? 'Signing in…' : 'Log in'}
@@ -171,7 +171,7 @@ export function Login() {
               </>
             ) : (
               <>
-                <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-zinc-200/80 bg-zinc-50 p-1">
+                <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-border bg-page p-1">
                   <SegmentButton
                     active={customerMode === 'login'}
                     onClick={() => {
@@ -192,10 +192,10 @@ export function Login() {
                   </SegmentButton>
                 </div>
 
-                <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
+                <h2 className="text-xl font-semibold tracking-tight text-text-primary">
                   {customerMode === 'signup' ? 'Create your account' : 'Track your cases'}
                 </h2>
-                <p className="mt-1.5 text-sm text-zinc-500">
+                <p className="mt-1.5 text-sm text-text-secondary">
                   {customerMode === 'signup'
                     ? 'Sign up to see every ticket in one place.'
                     : 'Log in to view all tickets linked to your account.'}
@@ -237,7 +237,7 @@ export function Login() {
                   <Button
                     type="submit"
                     variant="primary"
-                    className="mt-1 h-11 w-full !bg-zinc-950 !text-white shadow-lg shadow-zinc-950/15 hover:!bg-zinc-800"
+                    className="mt-1 h-11 w-full !bg-accent !text-text-inverse shadow-lg shadow-black/15 hover:!bg-accent-hover"
                     disabled={busy}
                   >
                     {busy
@@ -251,16 +251,16 @@ export function Login() {
                   </Button>
                 </form>
 
-                <div className="mt-5 flex items-center gap-3 text-xs text-zinc-400">
-                  <span className="h-px flex-1 bg-zinc-200" />
+                <div className="mt-5 flex items-center gap-3 text-xs text-text-tertiary">
+                  <span className="h-px flex-1 bg-border" />
                   or continue without account
-                  <span className="h-px flex-1 bg-zinc-200" />
+                  <span className="h-px flex-1 bg-border" />
                 </div>
 
                 <div className="mt-4 flex flex-col gap-2">
                   <Button
                     variant="outline"
-                    className="h-11 w-full !border-zinc-200 !bg-white/70 !text-zinc-900 hover:!bg-white"
+                    className="h-11 w-full !border-border !bg-surface/70 !text-text-primary hover:!bg-page"
                     onClick={() => navigate(`/${tenantSlug}/submit`)}
                   >
                     Submit a new problem
@@ -276,7 +276,7 @@ export function Login() {
               </>
             )}
           </Card>
-          <p className="mt-5 text-center text-xs text-zinc-600/80">
+          <p className="mt-5 text-center text-xs text-text-secondary/80">
             We use your details only to handle your case. Ticket links are private and require your
             phone number to open.
           </p>
@@ -307,9 +307,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-zinc-700">{label}</span>
+      <span className="text-sm font-medium text-text-secondary">{label}</span>
       <Input
-        className="h-11 border-zinc-200 bg-white/80 text-zinc-950 shadow-sm placeholder:text-zinc-400 hover:border-zinc-300 focus:border-zinc-900"
+        className="h-11 border-border bg-surface/80 text-text-primary shadow-sm placeholder:text-text-tertiary hover:border-border-strong focus:border-accent"
         type={type}
         required
         autoFocus={autoFocus}
@@ -342,8 +342,8 @@ function SegmentButton({
       className={cn(
         'focus-ring rounded-lg py-2 text-sm font-medium transition-all duration-200 ease-out',
         active
-          ? 'bg-white text-zinc-950 shadow-sm'
-          : 'text-zinc-500 hover:bg-white/50 hover:text-zinc-800',
+          ? 'bg-surface text-text-primary shadow-sm'
+          : 'text-text-secondary hover:bg-surface/60 hover:text-text-primary',
       )}
     >
       {children}

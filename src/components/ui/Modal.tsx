@@ -44,23 +44,23 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'modal-panel-in 180ms ease-out' }}
         className={cn(
-          'flex max-h-[90vh] w-full max-w-lg flex-col rounded-card-lg border border-border bg-surface',
+          'flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-card-lg border border-border bg-surface shadow-[0_24px_80px_-28px_rgba(24,24,27,0.45)]',
           className,
         )}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
-          <h2 id="modal-title" className="text-lg font-medium text-text-primary">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-5 py-4">
+          <h2 id="modal-title" className="text-lg font-medium tracking-tight text-text-primary">
             {title}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="focus-ring flex h-7 w-7 items-center justify-center rounded-control text-text-tertiary transition-colors duration-150 ease-out hover:bg-page hover:text-text-primary"
+            className="focus-ring flex h-8 w-8 items-center justify-center rounded-control text-text-tertiary transition-colors duration-150 ease-out hover:bg-page hover:text-text-primary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
+        <div className="overflow-y-auto px-5 py-5">{children}</div>
       </div>
     </div>
   )

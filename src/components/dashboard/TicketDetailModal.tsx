@@ -303,7 +303,11 @@ export function TicketDetailModal({
         )}
 
         {primaryAction && (
-          <Button variant="outline" className="self-start" onClick={() => onPrimaryAction(ticket)}>
+          <Button
+            variant={ticket.isStuck ? 'danger-outline' : 'primary'}
+            className="w-full sm:w-auto sm:self-start"
+            onClick={() => onPrimaryAction(ticket)}
+          >
             <primaryAction.icon className="h-3.5 w-3.5" aria-hidden="true" />
             {primaryAction.label}
           </Button>
@@ -358,7 +362,7 @@ export function TicketDetailModal({
 
         {onUpdateOps && ticket.status !== 'solved' && (
           <div className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3">
-            <p className="text-sm font-medium text-text-secondary">Case operations</p>
+            <p className="text-sm font-medium text-text-primary">Case operations</p>
             <label className="flex items-center gap-2 text-sm text-text-primary">
               <input
                 type="checkbox"
@@ -410,14 +414,20 @@ export function TicketDetailModal({
         )}
 
         {ticket.status !== 'solved' && (
-          <div className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                AI customer reply
-              </span>
+          <div className="flex flex-col gap-3 rounded-card border border-border bg-surface px-3.5 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+                  <Sparkles className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
+                  AI customer reply
+                </span>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  Draft → edit → approve. Sends via {aiChannel === 'email' ? 'email' : 'SMS'} only
+                  after you confirm.
+                </p>
+              </div>
               <Button
-                variant="outline"
+                variant={aiDraft ? 'outline' : 'primary'}
                 size="sm"
                 disabled={aiBusy || aiSendBusy}
                 onClick={() => void handleDraftAi()}
@@ -425,12 +435,8 @@ export function TicketDetailModal({
                 {aiBusy ? 'Drafting…' : aiDraft ? 'Redraft' : 'Draft with AI'}
               </Button>
             </div>
-            <p className="text-xs text-text-tertiary">
-              Reviews the case, lists missing info, and drafts a reply. You edit and approve before
-              anything is sent ({aiChannel === 'email' ? 'email' : 'SMS'}).
-            </p>
             {missingInfo.length > 0 && (
-              <div className="rounded-control border border-border bg-surface px-3 py-2">
+              <div className="rounded-control border border-border bg-page px-3 py-2.5">
                 <p className="text-xs font-medium text-text-tertiary">Missing info checklist</p>
                 <ul className="mt-1.5 list-disc space-y-1 pl-4 text-sm text-text-primary">
                   {missingInfo.map((item) => (
@@ -439,33 +445,33 @@ export function TicketDetailModal({
                 </ul>
               </div>
             )}
-            {(aiDraft || aiBusy) && (
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-tertiary">
-                  Draft{aiUsedAi ? ' · AI' : ' · template fallback'} — edit before send
-                </span>
-                <Textarea
-                  value={aiDraft}
-                  onChange={(e) => setAiDraft(e.target.value)}
-                  className="min-h-28"
-                  placeholder="AI draft will appear here…"
-                  disabled={aiBusy}
-                />
-              </label>
-            )}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-tertiary">
+                {aiDraft
+                  ? `Draft${aiUsedAi ? ' · AI' : ' · template'} — edit before send`
+                  : 'Reply draft'}
+              </span>
+              <Textarea
+                value={aiDraft}
+                onChange={(e) => setAiDraft(e.target.value)}
+                className="min-h-28"
+                placeholder="Click “Draft with AI” or write a reply yourself…"
+                disabled={aiBusy}
+              />
+            </label>
             {aiError && <p className="text-xs text-status-stuck-text">{aiError}</p>}
             {aiSendResult && <p className="text-xs text-text-secondary">{aiSendResult}</p>}
-            {aiDraft.trim().length >= 8 && (
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="primary"
-                  disabled={aiSendBusy || aiBusy}
-                  onClick={() => void handleSendAi()}
-                >
-                  {aiSendBusy ? 'Sending…' : `Approve & send via ${aiChannel === 'email' ? 'email' : 'SMS'}`}
-                </Button>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <Button
+                variant="primary"
+                disabled={aiSendBusy || aiBusy || aiDraft.trim().length < 8}
+                onClick={() => void handleSendAi()}
+              >
+                {aiSendBusy
+                  ? 'Sending…'
+                  : `Approve & send via ${aiChannel === 'email' ? 'email' : 'SMS'}`}
+              </Button>
+            </div>
           </div>
         )}
 

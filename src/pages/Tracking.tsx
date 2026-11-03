@@ -269,6 +269,18 @@ export function Tracking() {
           icon={MessageSquare}
           title="We couldn't find that ticket"
           description="Use Find my case with your ticket number and phone, or open the private link from your text."
+          action={
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="primary" onClick={() => navigate(tenantSlug ? `/${tenantSlug}/track` : '/')}>
+                Find my case
+              </Button>
+              {tenantSlug && (
+                <Button variant="outline" onClick={() => navigate(`/${tenantSlug}/submit`)}>
+                  Submit a new case
+                </Button>
+              )}
+            </div>
+          }
         />
       </div>
     )
@@ -489,8 +501,36 @@ export function Tracking() {
               <p className="text-base font-medium text-text-primary">
                 {tracking.assigneeName} · {tracking.departmentName} team
               </p>
-              <p className="text-sm text-text-secondary">named owner for your case</p>
+              <p className="text-sm text-text-secondary">Named owner for your case</p>
             </div>
+          </div>
+        )}
+
+        {tracking.status !== 'solved' && (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <Button variant="primary" className="flex-1" onClick={() => setMessageOpen(true)}>
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+              Add a message
+            </Button>
+            {(tracking.isStuck || tracking.status === 'assigned' || tracking.status === 'opened') && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={actionBusy}
+                onClick={() =>
+                  void runCustomerAction(
+                    () =>
+                      callRequestTicketUpdate({
+                        trackingToken: tracking.trackingToken,
+                        message: 'Customer requested an update on this case.',
+                      }),
+                    'Update requested. A manager has been notified.',
+                  )
+                }
+              >
+                Request an update
+              </Button>
+            )}
           </div>
         )}
 
@@ -648,11 +688,14 @@ export function Tracking() {
           )}
         </div>
 
-        <div className="mt-6 rounded-card-lg border border-border bg-surface px-5 py-5">
+        <div className="mt-6 rounded-card-lg border border-border bg-page/80 px-5 py-5">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+            Progress
+          </p>
           <Timeline steps={steps} currentIndex={currentIndex} />
         </div>
 
-        <div className="mt-4 rounded-card-lg border border-border bg-surface px-4 py-4">
+        <div className="mt-4 rounded-card-lg border border-border bg-page/80 px-4 py-4">
           <p className="text-sm font-medium text-text-secondary">Recent activity</p>
           {activity.length === 0 ? (
             <p className="mt-2 text-sm text-text-tertiary">No updates yet.</p>
@@ -667,32 +710,6 @@ export function Tracking() {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" className="flex-1" onClick={() => setMessageOpen(true)}>
-            <MessageSquare className="h-4 w-4" aria-hidden="true" />
-            Add a message
-          </Button>
-          {(tracking.isStuck || tracking.status === 'assigned' || tracking.status === 'opened') && (
-            <Button
-              variant="outline"
-              className="flex-1"
-              disabled={actionBusy}
-              onClick={() =>
-                void runCustomerAction(
-                  () =>
-                    callRequestTicketUpdate({
-                      trackingToken: tracking.trackingToken,
-                      message: 'Customer requested an update on this case.',
-                    }),
-                  'Update requested. A manager has been notified.',
-                )
-              }
-            >
-              Request an update
-            </Button>
           )}
         </div>
 

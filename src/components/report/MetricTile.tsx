@@ -3,19 +3,24 @@ import type { MetricCard } from '../../data/report'
 import { cn } from '../../lib/cn'
 
 export function MetricTile({ metric }: { metric: MetricCard }) {
+  const showTrend = metric.value !== '—' && Boolean(metric.delta)
   const Icon = metric.trend === 'up' ? ArrowUp : ArrowDown
 
   return (
-    <div className="flex flex-col gap-2 rounded-card-lg border border-border bg-surface px-5 py-4">
+    <div className="flex flex-col gap-2 rounded-card-lg border border-border bg-surface px-5 py-4 transition-colors duration-150 ease-out hover:border-border-strong">
       <span className="text-sm font-medium text-text-secondary">{metric.label}</span>
-      <span className="text-2xl font-medium text-text-primary">{metric.value}</span>
+      <span className="text-2xl font-medium tracking-tight text-text-primary">{metric.value}</span>
       <span
         className={cn(
           'flex items-center gap-1 text-xs font-medium',
-          metric.isGoodTrend ? 'text-status-solved-text' : 'text-status-stuck-text',
+          showTrend
+            ? metric.isGoodTrend
+              ? 'text-status-solved-text'
+              : 'text-status-stuck-text'
+            : 'text-text-tertiary',
         )}
       >
-        <Icon className="h-3 w-3" aria-hidden="true" />
+        {showTrend && <Icon className="h-3 w-3" aria-hidden="true" />}
         {metric.delta}
       </span>
     </div>

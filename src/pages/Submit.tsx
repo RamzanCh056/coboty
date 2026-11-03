@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { MessageSquare } from 'lucide-react'
 import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAppData } from '../context/AppData'
@@ -19,8 +20,12 @@ function isValidEmail(value: string): boolean {
 
 export function Submit() {
   const { tenantSlug } = useParams()
-  const { submitTicket, customerAccount } = useAppData()
+  const { submitTicket, customerAccount, currentTenant } = useAppData()
   const navigate = useNavigate()
+  const companyName = currentTenant?.name ?? tenantSlug?.replace(/-/g, ' ') ?? 'CoBotty'
+  const logoInitial =
+    currentTenant?.config.logoInitial ??
+    (companyName.trim().charAt(0).toUpperCase() || 'C')
 
   const [customerName, setCustomerName] = useState(customerAccount?.name ?? '')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -91,9 +96,9 @@ export function Submit() {
 
   return (
     <div className="min-h-screen bg-page">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
+      <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-5 py-12">
         {submitting ? (
-          <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
             <LoadingDots />
             <p className="text-lg font-medium text-text-primary">Got it — creating your ticket…</p>
             <p className="text-sm text-text-secondary">
@@ -101,20 +106,23 @@ export function Submit() {
                 ? `We'll email updates to ${customerEmail.trim()}.`
                 : `We'll text updates to ${customerPhone.trim()}.`}
             </p>
-          </div>
+          </Card>
         ) : (
-          <>
-            <div className="mb-6 flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-control bg-accent text-xs font-medium text-text-inverse">
-                C
+          <Card className="px-5 py-6 sm:px-7 sm:py-8">
+            <div className="mb-6 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-control bg-accent text-sm font-medium text-text-inverse">
+                {logoInitial}
               </div>
-              <span className="text-sm font-medium text-text-secondary capitalize">{tenantSlug}</span>
+              <div>
+                <p className="text-sm font-medium capitalize text-text-primary">{companyName}</p>
+                <p className="text-xs text-text-tertiary">Submit a case · about 30 seconds</p>
+              </div>
             </div>
 
             <h1 className="text-2xl font-medium tracking-tight text-text-primary">What's going on?</h1>
             <p className="mt-2 text-base text-text-secondary">
-              Describe the problem clearly. We'll assign a named owner on our team and keep this case
-              updated until it's resolved. No account needed — about 30 seconds.
+              Describe the problem clearly. We'll assign a named owner and keep this case updated
+              until it's resolved.
             </p>
 
             <div className="mt-6 flex flex-col gap-4">
@@ -217,18 +225,18 @@ export function Submit() {
 
             <Button
               variant="primary"
-              className="mt-5 w-full"
+              className="mt-6 h-11 w-full"
               disabled={!canSubmit || submitting}
               onClick={() => void handleSubmit()}
             >
-              Submit
+              Submit case
             </Button>
 
-            <p className="mt-6 text-center text-xs text-text-tertiary">
-              After you submit, a specialist owns your case. You can track progress and add messages
-              anytime with your ticket number and phone.
+            <p className="mt-5 text-center text-xs text-text-tertiary">
+              After you submit, a specialist owns your case. Track progress anytime with your ticket
+              number and phone.
             </p>
-          </>
+          </Card>
         )}
       </div>
     </div>

@@ -263,7 +263,7 @@ export function Dashboard() {
     <div className="flex min-h-screen flex-col bg-page">
       <TopBar tenant={currentTenant} user={currentUser} query={query} onQueryChange={setQuery} />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
         {actionError && (
           <p className="rounded-control border border-status-stuck-bg bg-status-stuck-bg/40 px-3 py-2 text-sm text-status-stuck-text">
             {actionError}
@@ -306,7 +306,9 @@ export function Dashboard() {
             </div>
 
             {filteredAlerts.length === 0 ? (
-              <p className="mt-4 text-sm text-text-tertiary">No alerts in this view.</p>
+              <p className="mt-4 rounded-control bg-page px-3 py-3 text-sm text-text-secondary">
+                All clear — no alerts in this view.
+              </p>
             ) : (
               <ul className="mt-4 flex flex-col gap-3">
                 {filteredAlerts.map((alert) => {
@@ -348,7 +350,7 @@ export function Dashboard() {
                                 )
                               }
                             >
-                              Ack
+                              Acknowledge
                             </Button>
                           )}
                           {(alert.status === 'open' ||
@@ -481,6 +483,19 @@ export function Dashboard() {
               icon={Inbox}
               title="No tickets match these filters"
               description="Try clearing a filter or searching for something else."
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSummaryFilter(null)
+                    setDepartmentFilter('all')
+                    setQuery('')
+                  }}
+                >
+                  Clear filters
+                </Button>
+              }
             />
           ) : (
             filteredTickets.map((ticket) => {

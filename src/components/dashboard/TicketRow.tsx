@@ -87,7 +87,7 @@ export function TicketRow({ ticket, department, assignee, onOpen, onPrimaryActio
           <Button
             size="sm"
             className="w-full sm:w-auto"
-            variant={ticket.isStuck ? 'danger-outline' : 'outline'}
+            variant={ticket.isStuck ? 'danger-outline' : 'primary'}
             onClick={(e) => {
               e.stopPropagation()
               onPrimaryAction(ticket)
