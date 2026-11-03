@@ -55,12 +55,12 @@ function FilterPill({
       aria-pressed={isActive}
       title={disabled ? 'Outside your department' : undefined}
       className={cn(
-        'focus-ring flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors duration-150 ease-out',
-        disabled && 'cursor-not-allowed border-border bg-page text-text-tertiary opacity-50',
+        'focus-ring flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors duration-150 ease-out',
+        disabled && 'cursor-not-allowed bg-page text-text-tertiary opacity-50',
         !disabled &&
           (isActive
-            ? 'border-accent bg-accent text-text-inverse'
-            : 'border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary'),
+            ? 'bg-accent text-text-inverse shadow-sm'
+            : 'bg-page text-text-secondary hover:bg-surface hover:text-text-primary ring-1 ring-border'),
       )}
     >
       {disabled && <Lock className="h-3 w-3" aria-hidden="true" />}

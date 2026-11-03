@@ -5,96 +5,114 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { relativeTime } from '../../lib/format'
 import { cn } from '../../lib/cn'
-import { getPrimaryAction } from '../../lib/ticketFlow'
+import { getPrimaryAction, isActiveAttention } from '../../lib/ticketFlow'
 
 interface TicketRowProps {
   ticket: Ticket
   department: Department
   assignee: StaffUser | null
+  currentUserId?: string | null
   onOpen: (ticket: Ticket) => void
   onPrimaryAction: (ticket: Ticket) => void
 }
 
-export function TicketRow({ ticket, department, assignee, onOpen, onPrimaryAction }: TicketRowProps) {
-  const resolvedAction = getPrimaryAction(ticket)
+export function TicketRow({
+  ticket,
+  department,
+  assignee,
+  currentUserId,
+  onOpen,
+  onPrimaryAction,
+}: TicketRowProps) {
+  const action = getPrimaryAction(ticket, currentUserId)
+  const needsAttention = isActiveAttention(ticket)
+  const claim = ticket.summary || ticket.claimText
 
   return (
     <div
       className={cn(
-        'group flex flex-col gap-3 border-b border-border px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 hover:bg-page sm:flex-row sm:items-center sm:gap-4',
-        ticket.isStuck && 'border-l-2 border-l-status-stuck-text',
-        ticket.hasUnreadCustomerReply && 'bg-status-new-bg/40',
+        'group relative flex flex-col gap-3 border-b border-border px-4 py-3.5 transition-colors duration-150 ease-out last:border-b-0 hover:bg-page/80 sm:flex-row sm:items-center sm:gap-5 sm:px-5',
+        ticket.hasUnreadCustomerReply && 'bg-status-new-bg/35',
+        needsAttention && 'bg-status-stuck-bg/20',
       )}
     >
+      <span
+        className={cn(
+          'absolute inset-y-0 left-0 w-1 rounded-r-full',
+          needsAttention
+            ? 'bg-status-stuck-text'
+            : ticket.hasUnreadCustomerReply
+              ? 'bg-status-new-text'
+              : ticket.status === 'solved'
+                ? 'bg-status-solved-text/50'
+                : 'bg-transparent group-hover:bg-border-strong',
+        )}
+        aria-hidden="true"
+      />
+
       <button
         onClick={() => onOpen(ticket)}
-        className="focus-ring flex min-w-0 flex-1 flex-col gap-2 rounded-control text-left sm:flex-row sm:items-center sm:gap-4"
+        className="focus-ring flex min-w-0 flex-1 flex-col gap-2 rounded-control text-left sm:flex-row sm:items-center sm:gap-5"
       >
-        <div className="flex items-start justify-between gap-3 sm:w-28 sm:shrink-0 sm:flex-col sm:justify-start">
-          <div>
-            <div className="text-sm font-medium text-text-primary">{ticket.displayId}</div>
-            <div
-              className={cn(
-                'mt-0.5 flex items-center gap-1 text-xs',
-                ticket.isStuck ? 'text-status-stuck-text' : 'text-text-tertiary',
-              )}
-            >
-              {ticket.isStuck && <AlertTriangle className="h-3 w-3" aria-hidden="true" />}
-              {ticket.isStuck
-                ? `${ticket.stuckSinceHours}h — needs attention`
-                : relativeTime(ticket.createdAt)}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:hidden">
-            <StatusPill status={ticket.status} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1 sm:max-w-none">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs font-medium tracking-wide text-text-tertiary">
+              {ticket.displayId}
+            </span>
+            {needsAttention && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-status-stuck-bg px-2 py-0.5 text-[11px] font-medium text-status-stuck-text">
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                {ticket.stuckSinceHours ?? 24}h overdue
+              </span>
+            )}
             {ticket.hasUnreadCustomerReply && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-status-new-bg px-2 py-0.5 text-[10px] font-medium text-status-new-text">
+              <span className="inline-flex items-center gap-1 rounded-full bg-status-new-bg px-2 py-0.5 text-[11px] font-medium text-status-new-text">
                 <MessageSquare className="h-3 w-3" aria-hidden="true" />
-                Reply
+                Customer replied
               </span>
             )}
           </div>
-        </div>
-
-        <div className="min-w-0 flex-1 sm:flex-[2]">
-          <div className="truncate text-base text-text-primary">{ticket.summary}</div>
-          <div className="truncate text-xs text-text-tertiary">{ticket.customerName}</div>
-        </div>
-
-        <div className="hidden w-24 shrink-0 sm:block">
-          <DepartmentPill name={department.name} slug={department.slug} />
-        </div>
-
-        <div className="hidden w-44 shrink-0 items-center gap-2 sm:flex">
-          <StatusPill status={ticket.status} />
-          {ticket.hasUnreadCustomerReply && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-status-new-bg px-2 py-0.5 text-[10px] font-medium text-status-new-text">
-              <MessageSquare className="h-3 w-3" aria-hidden="true" />
-              Reply
+          <p className="truncate text-md font-medium text-text-primary">{claim}</p>
+          <p className="truncate text-sm text-text-secondary">
+            {ticket.customerName}
+            <span className="text-text-tertiary">
+              {' '}
+              · {needsAttention ? 'Needs attention' : relativeTime(ticket.updatedAt || ticket.createdAt)}
             </span>
-          )}
-          {assignee && <Avatar initials={assignee.avatarInitials} size="sm" />}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 sm:hidden">
+        <div className="flex flex-wrap items-center gap-2 sm:w-[13.5rem] sm:shrink-0 sm:justify-end">
           <DepartmentPill name={department.name} slug={department.slug} />
-          {assignee && <Avatar initials={assignee.avatarInitials} size="sm" />}
+          <StatusPill status={ticket.status} />
+          {assignee ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
+              <Avatar initials={assignee.avatarInitials} size="sm" />
+              <span className="hidden max-w-[4.5rem] truncate lg:inline">{assignee.name.split(' ')[0]}</span>
+            </span>
+          ) : (
+            <span className="text-xs text-text-tertiary">Unassigned</span>
+          )}
         </div>
       </button>
 
-      <div className="w-full sm:w-40 sm:shrink-0 sm:text-right">
-        {resolvedAction && (
+      <div className="flex w-full gap-2 sm:w-[9.5rem] sm:shrink-0 sm:flex-col sm:items-stretch lg:w-40">
+        {action ? (
           <Button
             size="sm"
-            className="w-full sm:w-auto"
-            variant={ticket.isStuck ? 'danger-outline' : 'primary'}
+            className="w-full"
+            variant={action.kind === 'takeover' ? 'danger-outline' : 'primary'}
             onClick={(e) => {
               e.stopPropagation()
               onPrimaryAction(ticket)
             }}
           >
-            <resolvedAction.icon className="h-3.5 w-3.5" aria-hidden="true" />
-            {resolvedAction.label}
+            <action.icon className="h-3.5 w-3.5" aria-hidden="true" />
+            {action.label}
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" className="w-full" onClick={() => onOpen(ticket)}>
+            View case
           </Button>
         )}
       </div>

@@ -15,6 +15,7 @@ import { getStaffDepartment, catalogDepartment, catalogStaffMember } from '../da
 import type { ManagerAlert, ManagerAlertStatus, Ticket, TakeoverReason } from '../data/types'
 import { useAppData } from '../context/AppData'
 import { subscribeTicketHistory } from '../lib/firebase/data'
+import { getPrimaryAction, isActiveAttention } from '../lib/ticketFlow'
 import { cn } from '../lib/cn'
 
 type SummaryFilter = 'new' | 'mine' | 'stuck' | 'replies' | null
@@ -111,7 +112,7 @@ export function Dashboard() {
       mine: tickets.filter(
         (t) => currentUser && t.assignedTo === currentUser.id && t.status !== 'solved',
       ).length,
-      stuck: tickets.filter((t) => t.isStuck).length,
+      stuck: tickets.filter((t) => isActiveAttention(t)).length,
       replies: tickets.filter((t) => t.hasUnreadCustomerReply).length,
     }),
     [tickets, currentUser],
@@ -128,7 +129,7 @@ export function Dashboard() {
         if (summaryFilter === 'new') return t.status === 'new'
         if (summaryFilter === 'mine')
           return Boolean(currentUser && t.assignedTo === currentUser.id && t.status !== 'solved')
-        if (summaryFilter === 'stuck') return t.isStuck
+        if (summaryFilter === 'stuck') return isActiveAttention(t)
         if (summaryFilter === 'replies') return Boolean(t.hasUnreadCustomerReply)
         return true
       })
@@ -139,7 +140,8 @@ export function Dashboard() {
         return (
           t.displayId.toLowerCase().includes(q) ||
           t.customerName.toLowerCase().includes(q) ||
-          t.summary.toLowerCase().includes(q)
+          t.summary.toLowerCase().includes(q) ||
+          t.claimText.toLowerCase().includes(q)
         )
       })
 
@@ -156,9 +158,10 @@ export function Dashboard() {
         default: {
           const score = (t: Ticket) =>
             (t.hasUnreadCustomerReply ? 4 : 0) +
-            (t.isStuck ? 3 : 0) +
+            (isActiveAttention(t) ? 3 : 0) +
             (t.status === 'new' ? 2 : 0) +
-            (t.status === 'awaiting_confirmation' ? 1 : 0)
+            (t.status === 'awaiting_confirmation' ? 1 : 0) -
+            (t.status === 'solved' ? 5 : 0)
           const diff = score(b) - score(a)
           if (diff !== 0) return diff
           return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -226,7 +229,12 @@ export function Dashboard() {
   }
 
   function handlePrimaryAction(ticket: Ticket) {
-    if (ticket.isStuck) {
+    const action = getPrimaryAction(ticket, currentUser?.id)
+    if (!action) {
+      openTicket(ticket)
+      return
+    }
+    if (action.kind === 'takeover') {
       openTicket(ticket)
       return
     }
@@ -263,7 +271,24 @@ export function Dashboard() {
     <div className="flex min-h-screen flex-col bg-page">
       <TopBar tenant={currentTenant} user={currentUser} query={query} onQueryChange={setQuery} />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-medium tracking-tight text-text-primary">Inbox</h1>
+            <p className="mt-1 text-sm text-text-secondary">
+              {filteredTickets.length} case{filteredTickets.length === 1 ? '' : 's'}
+              {counts.stuck > 0 ? ` · ${counts.stuck} need attention` : ''}
+              {counts.replies > 0 ? ` · ${counts.replies} customer repl${counts.replies === 1 ? 'y' : 'ies'}` : ''}
+            </p>
+          </div>
+          <Link
+            to="/report"
+            className="focus-ring rounded-control text-sm font-medium text-text-secondary underline-offset-2 transition-colors duration-150 ease-out hover:text-text-primary hover:underline"
+          >
+            Performance report
+          </Link>
+        </div>
+
         {actionError && (
           <p className="rounded-control border border-status-stuck-bg bg-status-stuck-bg/40 px-3 py-2 text-sm text-status-stuck-text">
             {actionError}
@@ -462,19 +487,22 @@ export function Dashboard() {
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-card-lg border border-border bg-surface">
+        <div className="overflow-hidden rounded-card-lg border border-border bg-surface shadow-[0_18px_50px_-36px_rgba(24,24,27,0.35)]">
+          <div className="hidden items-center gap-5 border-b border-border bg-page/70 px-5 py-2.5 text-xs font-medium uppercase tracking-wide text-text-tertiary sm:flex">
+            <span className="flex-1">Case</span>
+            <span className="w-[13.5rem] text-right">Status</span>
+            <span className="w-40 text-right">Action</span>
+          </div>
           {!currentTenantId ? (
             <div className="flex flex-col">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                  className="flex items-center gap-4 border-b border-border px-5 py-4 last:border-b-0"
                 >
-                  <Skeleton className="h-8 w-24" />
-                  <Skeleton className="h-8 flex-[2]" />
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                  <Skeleton className="h-6 w-24 rounded-full" />
-                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-10 flex-[2]" />
+                  <Skeleton className="h-6 w-28 rounded-full" />
+                  <Skeleton className="h-8 w-28" />
                 </div>
               ))}
             </div>
@@ -489,7 +517,7 @@ export function Dashboard() {
                   size="sm"
                   onClick={() => {
                     setSummaryFilter(null)
-                    setDepartmentFilter('all')
+                    setDepartmentFilter(isManager ? null : (homeDepartment?.id ?? null))
                     setQuery('')
                   }}
                 >
@@ -507,6 +535,7 @@ export function Dashboard() {
                   ticket={ticket}
                   department={department}
                   assignee={catalogStaffMember(ticket.assignedTo)}
+                  currentUserId={currentUser.id}
                   onOpen={openTicket}
                   onPrimaryAction={handlePrimaryAction}
                 />
@@ -516,14 +545,8 @@ export function Dashboard() {
         </div>
 
         <footer className="mt-auto border-t border-border pt-4 text-sm text-text-tertiary">
-          {solvedThisWeek} resolved ·{' '}
-          <Link
-            to="/report"
-            className="focus-ring rounded-control font-medium text-text-secondary underline-offset-2 transition-colors duration-150 ease-out hover:text-text-primary hover:underline"
-          >
-            Full performance report
-          </Link>
-          {busyTicketId && <span className="ml-2">Updating…</span>}
+          {solvedThisWeek} resolved in workspace
+          {busyTicketId && <span className="ml-2 text-text-secondary">Updating…</span>}
         </footer>
       </main>
 

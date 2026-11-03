@@ -14,22 +14,46 @@ export const nextStatusMap: Record<TicketStatus, TicketStatus | null> = {
 export interface TicketAction {
   label: string
   icon: LucideIcon
+  kind: 'workflow' | 'takeover'
 }
 
-export function getPrimaryAction(ticket: Ticket): TicketAction | null {
-  if (ticket.isStuck) return { label: 'Take over', icon: ArrowUpRight }
+export function isActiveAttention(ticket: Ticket): boolean {
+  return Boolean(ticket.isStuck) && ticket.status !== 'solved' && ticket.status !== 'awaiting_confirmation'
+}
+
+function workflowAction(ticket: Ticket): TicketAction | null {
   switch (ticket.status) {
     case 'new':
-      return { label: 'Assign to me', icon: UserPlus }
+      return { label: 'Assign to me', icon: UserPlus, kind: 'workflow' }
     case 'assigned':
     case 'opened':
-      return { label: 'Contact customer', icon: PhoneCall }
+      return { label: 'Contact customer', icon: PhoneCall, kind: 'workflow' }
     case 'calling':
-      return { label: 'Mark resolved', icon: Check }
+      return { label: 'Mark resolved', icon: Check, kind: 'workflow' }
     case 'awaiting_confirmation':
     case 'solved':
       return null
   }
+}
+
+export function getPrimaryAction(
+  ticket: Ticket,
+  currentUserId?: string | null,
+): TicketAction | null {
+  if (ticket.status === 'solved' || ticket.status === 'awaiting_confirmation') {
+    return null
+  }
+
+  const mine = Boolean(currentUserId && ticket.assignedTo === currentUserId)
+  const stuck = isActiveAttention(ticket)
+
+  // Stuck cases owned by someone else → take over
+  if (stuck && ticket.assignedTo && !mine) {
+    return { label: 'Take over', icon: ArrowUpRight, kind: 'takeover' }
+  }
+
+  // Otherwise advance the case (even if stuck and mine)
+  return workflowAction(ticket)
 }
 
 export function expectedTiming(status: TicketStatus): string | null {
@@ -52,7 +76,11 @@ export function pickAutoAssignee(ticket: Ticket) {
   const tenantStaff = catalogStaffForTenant(ticket.tenantId)
   const dept = catalogDepartment(ticket.departmentId)
   if (!dept) return tenantStaff[0] ?? null
-  return tenantStaff.find((s) => s.departmentId === dept.id || s.team === dept.name) ?? tenantStaff[0] ?? null
+  return (
+    tenantStaff.find((s) => s.departmentId === dept.id || s.team === dept.name) ??
+    tenantStaff[0] ??
+    null
+  )
 }
 
 export function isTrackingToken(value: string): boolean {

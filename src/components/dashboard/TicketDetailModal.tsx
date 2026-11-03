@@ -17,7 +17,7 @@ import {
   callListTicketAttachments,
   uploadTicketAttachment,
 } from '../../lib/firebase/data'
-import { getPrimaryAction } from '../../lib/ticketFlow'
+import { getPrimaryAction, isActiveAttention } from '../../lib/ticketFlow'
 import { fullTimestamp } from '../../lib/format'
 import { cn } from '../../lib/cn'
 import { AlertTriangle, Lock, MessageSquare, Paperclip, Sparkles, Users } from 'lucide-react'
@@ -170,7 +170,9 @@ export function TicketDetailModal({
   if (!ticket || !department) return null
 
   const smsPreview = buildSmsPreview(ticket, reason, currentUser, assignee)
-  const primaryAction = !ticket.isStuck ? getPrimaryAction(ticket) : null
+  const primaryAction = getPrimaryAction(ticket, currentUser.id)
+  const showTakeoverPanel =
+    isActiveAttention(ticket) && Boolean(ticket.assignedTo) && ticket.assignedTo !== currentUser.id
   const canReassign = currentUser.role === 'manager' || currentUser.role === 'admin'
   const reassignOptions = tenantStaff.filter((s) => s.id !== ticket.assignedTo)
 
@@ -270,7 +272,7 @@ export function TicketDetailModal({
               Customer reply
             </WarningChip>
           )}
-          {ticket.isStuck && (
+          {isActiveAttention(ticket) && (
             <WarningChip>
               <AlertTriangle className="h-3 w-3" aria-hidden="true" />
               Needs attention · {ticket.stuckSinceHours}h
@@ -278,8 +280,8 @@ export function TicketDetailModal({
           )}
         </div>
 
-        <div className="rounded-card border border-border bg-page px-4 py-3">
-          <p className="text-base text-text-primary">{ticket.claimText}</p>
+        <div className="rounded-card border border-border bg-page px-4 py-3.5">
+          <p className="text-md font-medium leading-relaxed text-text-primary">{ticket.claimText}</p>
           <div className="mt-3 flex flex-col gap-0.5 border-t border-border pt-3">
             <p className="text-xs font-medium text-text-tertiary">Customer</p>
             <p className="text-sm font-medium text-text-primary">{ticket.customerName}</p>
@@ -302,9 +304,9 @@ export function TicketDetailModal({
           </div>
         )}
 
-        {primaryAction && (
+        {primaryAction && primaryAction.kind === 'workflow' && (
           <Button
-            variant={ticket.isStuck ? 'danger-outline' : 'primary'}
+            variant="primary"
             className="w-full sm:w-auto sm:self-start"
             onClick={() => onPrimaryAction(ticket)}
           >
@@ -544,7 +546,7 @@ export function TicketDetailModal({
           )}
         </div>
 
-        {ticket.isStuck && (
+        {showTakeoverPanel && (
           <div className="flex flex-col gap-4 rounded-card border border-status-stuck-bg bg-status-stuck-bg/40 p-4">
             <div className="flex items-center gap-2">
               <Avatar initials={currentUser.avatarInitials} size="sm" />
