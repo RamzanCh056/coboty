@@ -47,7 +47,11 @@ export const draftCustomerReply = onCall({ cors: true }, async (request) => {
     draftMessage: result.draftMessage,
     missingInfo: result.missingInfo,
     usedAi: result.usedAi,
+    confidence: result.confidence,
+    riskFlags: result.riskFlags,
+    suggestedNextStep: result.suggestedNextStep,
     preferredChannel: channel,
     displayId: ticket.displayId,
+    pendingAiReplyId: ticket.pendingAiReplyId ?? null,
   }
 })

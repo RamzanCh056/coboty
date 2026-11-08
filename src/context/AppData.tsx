@@ -32,8 +32,11 @@ import {
   callRunUnopenedSlaCheck,
   callSubmitTicket,
   callTakeoverTicket,
+  callApprovePendingAiReply,
+  callDismissPendingAiReply,
   callDraftCustomerReply,
   callSendStaffCustomerReply,
+  callUpdateAiAgentSettings,
   callUpdateTicketOps,
   callUpdateUnopenedSla,
   subscribeDepartments,
@@ -47,6 +50,7 @@ import type {
   CustomerTicketSummary,
   Department,
   ManagerAlert,
+  PendingAiReply,
   StaffUser,
   TakeoverReason,
   Tenant,
@@ -75,6 +79,7 @@ interface AppDataContextValue {
   staff: StaffUser[]
   tickets: Ticket[]
   managerAlerts: ManagerAlert[]
+  pendingAiReplies: PendingAiReply[]
   history: TicketHistoryEntry[]
   login: (email: string, password: string) => Promise<StaffUser>
   loginCustomer: (email: string, password: string) => Promise<CustomerAccount>
@@ -115,14 +120,27 @@ interface AppDataContextValue {
     draftMessage: string
     missingInfo: string[]
     usedAi: boolean
+    confidence?: number
+    riskFlags?: string[]
+    suggestedNextStep?: string | null
     preferredChannel: 'sms' | 'email'
     displayId: string
+    pendingAiReplyId?: string | null
   }>
   sendStaffCustomerReply: (
     ticketId: string,
     message: string,
     usedAiDraft?: boolean,
   ) => Promise<{ channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }>
+  approvePendingAiReply: (
+    draftId: string,
+    message?: string,
+  ) => Promise<{ channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }>
+  dismissPendingAiReply: (draftId: string) => Promise<void>
+  updateAiAgentSettings: (input: {
+    aiAutoSendEnabled: boolean
+    aiAutoSendMinConfidence?: number
+  }) => Promise<void>
   markCustomerReplyRead: (ticketId: string) => Promise<void>
   acknowledgeManagerAlert: (alertId: string) => Promise<void>
   assignManagerAlert: (alertId: string, assignedToStaffId: string) => Promise<void>
@@ -182,6 +200,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffUser[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [managerAlerts, setManagerAlerts] = useState<ManagerAlert[]>([])
+  const [pendingAiReplies, setPendingAiReplies] = useState<PendingAiReply[]>([])
   const [historyByTicket, setHistoryByTicket] = useState<Record<string, TicketHistoryEntry[]>>({})
   const usingFirestoreStaff = useRef(false)
 
@@ -193,6 +212,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       staff: StaffUser[]
       tickets: Ticket[]
       managerAlerts?: ManagerAlert[]
+      pendingAiReplies?: PendingAiReply[]
     }) => {
       setCustomerAccount(null)
       setCurrentUser(workspace.profile)
@@ -203,6 +223,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setStaff(workspace.staff)
       setTickets(workspace.tickets)
       setManagerAlerts(workspace.managerAlerts ?? [])
+      setPendingAiReplies(workspace.pendingAiReplies ?? [])
       hydrateCatalog({
         tenant: workspace.tenant,
         departments: workspace.departments,
@@ -669,6 +690,47 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [currentTenantId, staffSessionId, refreshStaffWorkspace, loadTicketHistory],
   )
 
+  const approvePendingAiReply = useCallback(
+    async (draftId: string, message?: string) => {
+      if (!currentTenantId || !staffSessionId) throw new Error('Not signed in to a tenant.')
+      const result = await callApprovePendingAiReply({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        draftId,
+        message,
+      })
+      await refreshStaffWorkspace()
+      return { channel: result.channel, status: result.status }
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
+  const dismissPendingAiReply = useCallback(
+    async (draftId: string) => {
+      if (!currentTenantId || !staffSessionId) throw new Error('Not signed in to a tenant.')
+      await callDismissPendingAiReply({
+        sessionId: staffSessionId,
+        tenantId: currentTenantId,
+        draftId,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
+  const updateAiAgentSettings = useCallback(
+    async (input: { aiAutoSendEnabled: boolean; aiAutoSendMinConfidence?: number }) => {
+      if (!currentTenantId) throw new Error('Not signed in to a tenant.')
+      await callUpdateAiAgentSettings({
+        tenantId: currentTenantId,
+        sessionId: staffSessionId ?? undefined,
+        ...input,
+      })
+      await refreshStaffWorkspace()
+    },
+    [currentTenantId, staffSessionId, refreshStaffWorkspace],
+  )
+
   const history = useMemo(() => Object.values(historyByTicket).flat(), [historyByTicket])
 
   const historyForTicket = useCallback(
@@ -693,6 +755,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       staff,
       tickets,
       managerAlerts,
+      pendingAiReplies,
       history,
       login,
       loginCustomer,
@@ -707,6 +770,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateTicketOps,
       draftCustomerReply,
       sendStaffCustomerReply,
+      approvePendingAiReply,
+      dismissPendingAiReply,
+      updateAiAgentSettings,
       markCustomerReplyRead,
       acknowledgeManagerAlert,
       assignManagerAlert,
@@ -731,6 +797,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       staff,
       tickets,
       managerAlerts,
+      pendingAiReplies,
       history,
       login,
       loginCustomer,
@@ -745,6 +812,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateTicketOps,
       draftCustomerReply,
       sendStaffCustomerReply,
+      approvePendingAiReply,
+      dismissPendingAiReply,
+      updateAiAgentSettings,
       markCustomerReplyRead,
       acknowledgeManagerAlert,
       assignManagerAlert,

@@ -8,6 +8,7 @@ import { requireStaffSession, STAFF_SESSIONS, type StaffSession } from '../helpe
 import type {
   Department,
   ManagerAlert,
+  PendingAiReply,
   StaffUser,
   Tenant,
   Ticket,
@@ -220,32 +221,43 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
 
   await ensureDefaultTenant(tenantId)
 
-  const [tenantSnap, departmentsSnap, usersSnap, ticketsSnap, alertsSnap] = await Promise.all([
-    db.collection('tenants').doc(tenantId).get(),
-    db.collection('tenants').doc(tenantId).collection('departments').get(),
-    db.collection('tenants').doc(tenantId).collection('users').get(),
-    db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('tickets')
-      .orderBy('updatedAt', 'desc')
-      .limit(200)
-      .get()
-      .catch(async () => {
-        // Fallback if index/order is unavailable.
-        return db.collection('tenants').doc(tenantId).collection('tickets').limit(200).get()
-      }),
-    db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('managerAlerts')
-      .orderBy('createdAt', 'desc')
-      .limit(20)
-      .get()
-      .catch(async () =>
-        db.collection('tenants').doc(tenantId).collection('managerAlerts').limit(20).get(),
-      ),
-  ])
+  const [tenantSnap, departmentsSnap, usersSnap, ticketsSnap, alertsSnap, pendingAiSnap] =
+    await Promise.all([
+      db.collection('tenants').doc(tenantId).get(),
+      db.collection('tenants').doc(tenantId).collection('departments').get(),
+      db.collection('tenants').doc(tenantId).collection('users').get(),
+      db
+        .collection('tenants')
+        .doc(tenantId)
+        .collection('tickets')
+        .orderBy('updatedAt', 'desc')
+        .limit(200)
+        .get()
+        .catch(async () => {
+          // Fallback if index/order is unavailable.
+          return db.collection('tenants').doc(tenantId).collection('tickets').limit(200).get()
+        }),
+      db
+        .collection('tenants')
+        .doc(tenantId)
+        .collection('managerAlerts')
+        .orderBy('createdAt', 'desc')
+        .limit(20)
+        .get()
+        .catch(async () =>
+          db.collection('tenants').doc(tenantId).collection('managerAlerts').limit(20).get(),
+        ),
+      db
+        .collection('tenants')
+        .doc(tenantId)
+        .collection('pendingAiReplies')
+        .where('status', '==', 'pending')
+        .limit(30)
+        .get()
+        .catch(async () =>
+          db.collection('tenants').doc(tenantId).collection('pendingAiReplies').limit(30).get(),
+        ),
+    ])
 
   const tenant = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant
   const departments = departmentsSnap.docs.map(
@@ -258,6 +270,10 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
   const managerAlerts = alertsSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ManagerAlert)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const pendingAiReplies = pendingAiSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as PendingAiReply)
+    .filter((d) => d.status === 'pending')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return {
     profile: session.profile,
@@ -266,6 +282,7 @@ export const loadStaffWorkspace = onCall({ cors: true }, async (request) => {
     staff,
     tickets,
     managerAlerts,
+    pendingAiReplies,
   }
 })
 

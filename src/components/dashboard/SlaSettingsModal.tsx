@@ -7,14 +7,17 @@ import { useAppData } from '../../context/AppData'
 const PRESETS = [2, 3, 6]
 
 export function SlaSettingsModal({ onClose }: { onClose: () => void }) {
-  const { currentTenant, updateUnopenedSla, runUnopenedSlaCheck } = useAppData()
+  const { currentTenant, updateUnopenedSla, runUnopenedSlaCheck, updateAiAgentSettings } =
+    useAppData()
   const currentHours = currentTenant?.config.unopenedSlaHours ?? 3
   const [hours, setHours] = useState(currentHours)
   const [custom, setCustom] = useState(
     PRESETS.includes(currentHours) ? '' : String(currentHours),
   )
+  const [autoSend, setAutoSend] = useState(Boolean(currentTenant?.config.aiAutoSendEnabled))
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -105,6 +108,57 @@ export function SlaSettingsModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => setCustom(e.target.value)}
           />
         </label>
+
+        <div className="mt-6 border-t border-border pt-4">
+          <h3 className="text-base font-medium text-text-primary">AI conversation agent</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            When a customer replies, CoBotty drafts a response for staff approval. Optionally allow
+            low-risk drafts to auto-send (never marks solved).
+          </p>
+          <label className="mt-3 flex items-start gap-2.5 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={autoSend}
+              onChange={(e) => setAutoSend(e.target.checked)}
+            />
+            <span>
+              Enable low-risk auto-send
+              <span className="mt-0.5 block text-xs text-text-tertiary">
+                Requires high confidence, no pricing/legal/promise flags. Default off.
+              </span>
+            </span>
+          </label>
+          <Button
+            variant="outline"
+            className="mt-3"
+            disabled={aiBusy}
+            onClick={() => {
+              void (async () => {
+                setAiBusy(true)
+                setError('')
+                setMessage('')
+                try {
+                  await updateAiAgentSettings({
+                    aiAutoSendEnabled: autoSend,
+                    aiAutoSendMinConfidence: 0.85,
+                  })
+                  setMessage(
+                    autoSend
+                      ? 'AI auto-send enabled for low-risk drafts.'
+                      : 'AI auto-send disabled. Staff must approve drafts.',
+                  )
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Could not save AI settings.')
+                } finally {
+                  setAiBusy(false)
+                }
+              })()
+            }}
+          >
+            {aiBusy ? 'Saving…' : 'Save AI settings'}
+          </Button>
+        </div>
 
         {error && <p className="mt-3 text-sm text-status-stuck-text">{error}</p>}
         {message && <p className="mt-3 text-sm text-status-solved-text">{message}</p>}

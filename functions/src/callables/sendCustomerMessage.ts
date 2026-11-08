@@ -88,5 +88,18 @@ export const sendCustomerMessage = onCall({ cors: true }, async (request) => {
   await alertRef.set({ id: alertRef.id, ...alert })
 
   await rebuildProjection(projection.tenantId, projection.ticketId)
+
+  // Best-effort AI conversation agent — never fail the customer message path.
+  try {
+    const { createPendingAiReplyForTicket } = await import('../helpers/createPendingAiReply')
+    await createPendingAiReplyForTicket({
+      tenantId: projection.tenantId,
+      ticketId: projection.ticketId,
+      sourceCustomerMessage: message,
+    })
+  } catch (err) {
+    console.error('[sendCustomerMessage] AI draft failed', err)
+  }
+
   return { ok: true }
 })

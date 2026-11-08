@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Inbox, MessageSquare, UserCheck } from 'lucide-react'
+import { AlertTriangle, Inbox, MessageSquare, Sparkles, UserCheck } from 'lucide-react'
 import { TopBar } from '../components/dashboard/TopBar'
 import { SummaryCard } from '../components/dashboard/SummaryCard'
 import { DepartmentFilters } from '../components/dashboard/DepartmentFilters'
@@ -54,10 +54,13 @@ export function Dashboard() {
     staff,
     tickets: allTickets,
     managerAlerts,
+    pendingAiReplies,
     assignTicket,
     takeoverTicket,
     reassignTicket,
     updateTicketOps,
+    approvePendingAiReply,
+    dismissPendingAiReply,
     markCustomerReplyRead,
     setTicketHistory,
     historyForTicket,
@@ -83,6 +86,7 @@ export function Dashboard() {
   const [alertAssignId, setAlertAssignId] = useState<Record<string, string>>({})
   const [busyAlertId, setBusyAlertId] = useState<string | null>(null)
   const [evidenceTicket, setEvidenceTicket] = useState<Ticket | null>(null)
+  const [busyAiDraftId, setBusyAiDraftId] = useState<string | null>(null)
 
   useEffect(() => {
     setDepartmentFilter(isManager ? null : (homeDepartment?.id ?? null))
@@ -293,6 +297,127 @@ export function Dashboard() {
           <p className="rounded-control border border-status-stuck-bg bg-status-stuck-bg/40 px-3 py-2 text-sm text-status-stuck-text">
             {actionError}
           </p>
+        )}
+
+        {pendingAiReplies.length > 0 && (
+          <div className="rounded-card-lg border border-border bg-surface px-4 py-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="flex items-center gap-1.5 text-base font-medium text-text-primary">
+                  <Sparkles className="h-4 w-4 text-text-secondary" aria-hidden="true" />
+                  AI drafts awaiting approval
+                </p>
+                <p className="mt-0.5 text-sm text-text-secondary">
+                  Auto-created when customers reply. Review, edit if needed, then approve — or dismiss.
+                </p>
+              </div>
+              <span className="rounded-full bg-page px-2.5 py-1 text-xs font-medium text-text-secondary">
+                {pendingAiReplies.length} pending
+              </span>
+            </div>
+            <ul className="flex flex-col gap-3">
+              {pendingAiReplies.map((draft) => {
+                const busy = busyAiDraftId === draft.id
+                return (
+                  <li
+                    key={draft.id}
+                    className="flex flex-col gap-3 rounded-card border border-border bg-page px-3.5 py-3 lg:flex-row lg:items-start lg:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="focus-ring rounded-control text-sm font-medium text-text-primary underline-offset-2 hover:underline"
+                          onClick={() => {
+                            const ticket = tickets.find((t) => t.id === draft.ticketId)
+                            if (ticket) openTicket(ticket)
+                            else setActiveTicketId(draft.ticketId)
+                          }}
+                        >
+                          {draft.displayId}
+                        </button>
+                        <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+                          {Math.round(draft.confidence * 100)}% confidence
+                        </span>
+                        {draft.riskFlags.length > 0 && (
+                          <span className="rounded-full bg-status-stuck-bg px-2 py-0.5 text-xs font-medium text-status-stuck-text">
+                            Review risks
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-sm text-text-secondary whitespace-pre-wrap">
+                        {draft.draftMessage}
+                      </p>
+                      {draft.missingInfo.length > 0 && (
+                        <p className="mt-1 text-xs text-text-tertiary">
+                          Asking for: {draft.missingInfo.slice(0, 2).join(' · ')}
+                          {draft.missingInfo.length > 2 ? '…' : ''}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          const ticket = tickets.find((t) => t.id === draft.ticketId)
+                          if (ticket) openTicket(ticket)
+                          else setActiveTicketId(draft.ticketId)
+                        }}
+                      >
+                        Open
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={busy}
+                        onClick={() => {
+                          void (async () => {
+                            setBusyAiDraftId(draft.id)
+                            setActionError('')
+                            try {
+                              await approvePendingAiReply(draft.id)
+                            } catch (err) {
+                              setActionError(
+                                err instanceof Error ? err.message : 'Could not approve AI draft.',
+                              )
+                            } finally {
+                              setBusyAiDraftId(null)
+                            }
+                          })()
+                        }}
+                      >
+                        {busy ? 'Sending…' : 'Approve & send'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          void (async () => {
+                            setBusyAiDraftId(draft.id)
+                            setActionError('')
+                            try {
+                              await dismissPendingAiReply(draft.id)
+                            } catch (err) {
+                              setActionError(
+                                err instanceof Error ? err.message : 'Could not dismiss AI draft.',
+                              )
+                            } finally {
+                              setBusyAiDraftId(null)
+                            }
+                          })()
+                        }}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         )}
 
         {isManager && (

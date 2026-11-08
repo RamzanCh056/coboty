@@ -22,6 +22,39 @@ export interface TenantConfig {
   logoInitial: string
   ticketPrefix: string
   unopenedSlaHours?: number
+  aiAutoSendEnabled?: boolean
+  aiAutoSendMinConfidence?: number
+}
+
+export type PendingAiReplyStatus =
+  | 'pending'
+  | 'approved'
+  | 'dismissed'
+  | 'auto_sent'
+  | 'superseded'
+
+export interface PendingAiReply {
+  id: string
+  tenantId: string
+  ticketId: string
+  displayId: string
+  departmentId?: string | null
+  status: PendingAiReplyStatus
+  draftMessage: string
+  missingInfo: string[]
+  confidence: number
+  usedAi: boolean
+  riskFlags: string[]
+  suggestedNextStep?: string | null
+  sourceCustomerMessage?: string | null
+  preferredChannel: PreferredChannel
+  createdAt: string
+  updatedAt: string
+  decidedAt?: string | null
+  decidedBy?: string | null
+  finalMessage?: string | null
+  sendChannel?: 'sms' | 'email' | null
+  sendStatus?: 'sent' | 'skipped' | 'failed' | null
 }
 
 export interface Tenant {
@@ -106,6 +139,10 @@ export interface Ticket {
   lastMissedPromiseAlertAt?: string | null
   assignedAt?: string | null
   lastUnopenedSlaAt?: string | null
+  pendingAiReplyId?: string | null
+  pendingAiReplyStatus?: 'pending' | null
+  pendingAiReplyConfidence?: number | null
+  pendingAiReplyPreview?: string | null
 }
 
 export type TicketAction =

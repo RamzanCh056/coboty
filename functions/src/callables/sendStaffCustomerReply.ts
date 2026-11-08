@@ -2,8 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { z } from 'zod'
 import { db } from '../helpers/admin'
 import { assertCanMutate, assertSameTenant, requireStaffActor } from '../helpers/auth'
-import { notifyCustomer } from '../helpers/email'
-import { appendHistory, rebuildProjection } from '../helpers/projection'
+import { sendCustomerFacingReply } from '../helpers/sendCustomerFacingReply'
 import type { Ticket } from '../types'
 
 const schema = z.object({
@@ -41,40 +40,36 @@ export const sendStaffCustomerReply = onCall({ cors: true }, async (request) => 
 
   const userSnap = await db.collection('tenants').doc(tenantId).collection('users').doc(claims.uid).get()
   const actorName = (userSnap.data()?.name as string | undefined) ?? 'Staff'
-  const now = new Date().toISOString()
-  const trimmed = message.trim()
 
-  const notify = await notifyCustomer({
+  const notify = await sendCustomerFacingReply({
     ticket,
-    message: trimmed,
-    emailSubject: `Update on ${ticket.displayId}`,
+    message: message.trim(),
+    actorName,
+    auditNote: usedAiDraft
+      ? `AI-assisted reply approved and sent via preferred channel.`
+      : `Staff reply sent via preferred channel.`,
   })
 
-  await appendHistory(tenantId, ticketId, {
-    action: 'message',
-    actor: actorName,
-    note: trimmed,
-    visibleToCustomer: true,
-    timestamp: now,
-  })
-
-  await appendHistory(tenantId, ticketId, {
-    action: 'note',
-    actor: actorName,
-    note: usedAiDraft
-      ? `AI-assisted reply approved and sent via ${notify.channel} (${notify.status}).`
-      : `Staff reply sent via ${notify.channel} (${notify.status}).`,
-    visibleToCustomer: false,
-    timestamp: now,
-  })
-
-  await ticketRef.update({
-    updatedAt: now,
-    waitingForCustomer: true,
-    hasUnreadCustomerReply: false,
-  })
-
-  await rebuildProjection(tenantId, ticketId)
+  // If a pending draft exists for this ticket, mark it approved/superseded
+  if (ticket.pendingAiReplyId) {
+    const draftRef = db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('pendingAiReplies')
+      .doc(ticket.pendingAiReplyId)
+    const draftSnap = await draftRef.get()
+    if (draftSnap.exists && draftSnap.data()?.status === 'pending') {
+      await draftRef.update({
+        status: 'approved',
+        updatedAt: new Date().toISOString(),
+        decidedAt: new Date().toISOString(),
+        decidedBy: actorName,
+        finalMessage: message.trim(),
+        sendChannel: notify.channel,
+        sendStatus: notify.status,
+      })
+    }
+  }
 
   return {
     ok: true,

@@ -37,3 +37,6 @@ export {
 export { submitTicketCsat } from './callables/submitTicketCsat'
 export { draftCustomerReply } from './callables/draftCustomerReply'
 export { sendStaffCustomerReply } from './callables/sendStaffCustomerReply'
+export { approvePendingAiReply } from './callables/approvePendingAiReply'
+export { dismissPendingAiReply } from './callables/dismissPendingAiReply'
+export { updateAiAgentSettings } from './callables/updateAiAgentSettings'

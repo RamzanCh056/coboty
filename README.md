@@ -54,10 +54,16 @@ Set as runtime environment variables on deployed functions (or migrate to Secret
 If unset, classification falls back to keywords / first department and SMS sends are logged as `skipped`.
 AI customer-reply drafts also fall back to a template + heuristic missing-info checklist when Anthropic is unset.
 
-## AI customer reply (Phase 1)
+## AI conversation agent
 
-Staff open a ticket → **AI customer reply** → **Draft with AI** → edit → **Approve & send**.
-Nothing is sent until staff approve. Sends use the ticket’s preferred channel (SMS/email) via `notifyCustomer`, and write an audit note in history.
+**Phase 1:** Staff open a ticket → **AI customer reply** → **Draft with AI** → edit → **Approve & send**.
+
+**Phase 2 (live):** When a customer sends a message, CoBotty auto-creates a pending AI draft
+(`pendingAiReplies`) with confidence + risk flags. Staff see an **AI drafts awaiting approval**
+strip on the Dashboard, then Open / Approve & send / Dismiss. Ticket modal prefills the pending draft.
+
+Optional **low-risk auto-send** (manager settings, default off): high-confidence drafts with no
+pricing/legal/promise flags may send automatically. The agent never marks a ticket solved.
 
 ## Deploy
 

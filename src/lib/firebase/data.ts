@@ -12,6 +12,7 @@ import type {
   CustomerTicketSummary,
   Department,
   ManagerAlert,
+  PendingAiReply,
   PublicTracking,
   StaffUser,
   TakeoverReason,
@@ -134,6 +135,7 @@ export async function callLoadStaffWorkspace(sessionId: string): Promise<{
   staff: StaffUser[]
   tickets: Ticket[]
   managerAlerts: ManagerAlert[]
+  pendingAiReplies: PendingAiReply[]
 }> {
   const fn = httpsCallable<
     { sessionId: string },
@@ -144,10 +146,15 @@ export async function callLoadStaffWorkspace(sessionId: string): Promise<{
       staff: StaffUser[]
       tickets: Ticket[]
       managerAlerts: ManagerAlert[]
+      pendingAiReplies?: PendingAiReply[]
     }
   >(functions, 'loadStaffWorkspace')
   const data = (await fn({ sessionId })).data
-  return { ...data, managerAlerts: data.managerAlerts ?? [] }
+  return {
+    ...data,
+    managerAlerts: data.managerAlerts ?? [],
+    pendingAiReplies: data.pendingAiReplies ?? [],
+  }
 }
 
 export async function callUpdateUnopenedSla(input: {
@@ -288,8 +295,12 @@ export async function callDraftCustomerReply(input: {
   draftMessage: string
   missingInfo: string[]
   usedAi: boolean
+  confidence?: number
+  riskFlags?: string[]
+  suggestedNextStep?: string | null
   preferredChannel: 'sms' | 'email'
   displayId: string
+  pendingAiReplyId?: string | null
 }> {
   const fn = httpsCallable<
     typeof input,
@@ -297,10 +308,49 @@ export async function callDraftCustomerReply(input: {
       draftMessage: string
       missingInfo: string[]
       usedAi: boolean
+      confidence?: number
+      riskFlags?: string[]
+      suggestedNextStep?: string | null
       preferredChannel: 'sms' | 'email'
       displayId: string
+      pendingAiReplyId?: string | null
     }
   >(functions, 'draftCustomerReply')
+  return (await fn(input)).data
+}
+
+export async function callApprovePendingAiReply(input: {
+  sessionId: string
+  tenantId: string
+  draftId: string
+  message?: string
+}): Promise<{ ok: boolean; channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }> {
+  const fn = httpsCallable<
+    typeof input,
+    { ok: boolean; channel: 'sms' | 'email'; status: 'sent' | 'skipped' | 'failed' }
+  >(functions, 'approvePendingAiReply')
+  return (await fn(input)).data
+}
+
+export async function callDismissPendingAiReply(input: {
+  sessionId: string
+  tenantId: string
+  draftId: string
+}): Promise<{ ok: boolean }> {
+  const fn = httpsCallable<typeof input, { ok: boolean }>(functions, 'dismissPendingAiReply')
+  return (await fn(input)).data
+}
+
+export async function callUpdateAiAgentSettings(input: {
+  tenantId: string
+  sessionId?: string
+  aiAutoSendEnabled: boolean
+  aiAutoSendMinConfidence?: number
+}): Promise<{ ok: boolean; aiAutoSendEnabled: boolean; aiAutoSendMinConfidence: number }> {
+  const fn = httpsCallable<
+    typeof input,
+    { ok: boolean; aiAutoSendEnabled: boolean; aiAutoSendMinConfidence: number }
+  >(functions, 'updateAiAgentSettings')
   return (await fn(input)).data
 }
 

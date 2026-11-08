@@ -94,8 +94,15 @@ export function TicketDetailModal({
     },
   ) => void
 }) {
-  const { staffSessionId, currentTenantId, draftCustomerReply, sendStaffCustomerReply } =
-    useAppData()
+  const {
+    staffSessionId,
+    currentTenantId,
+    draftCustomerReply,
+    sendStaffCustomerReply,
+    pendingAiReplies,
+    approvePendingAiReply,
+    dismissPendingAiReply,
+  } = useAppData()
   const [reason, setReason] = useState<TakeoverReason>('colleague_unavailable')
   const [note, setNote] = useState('')
   const [reassignTo, setReassignTo] = useState('')
@@ -123,10 +130,20 @@ export function TicketDetailModal({
     setPromisedAt(ticket.promisedResponseAt ? ticket.promisedResponseAt.slice(0, 16) : '')
     setWaitingCustomer(Boolean(ticket.waitingForCustomer))
     setWaitingInternal(Boolean(ticket.waitingForInternal))
-    setAiDraft('')
-    setMissingInfo([])
-    setAiUsedAi(false)
-    setAiChannel(ticket.preferredChannel === 'email' ? 'email' : 'sms')
+    const pending = pendingAiReplies.find(
+      (d) => d.ticketId === ticket.id && d.status === 'pending',
+    )
+    if (pending) {
+      setAiDraft(pending.draftMessage)
+      setMissingInfo(pending.missingInfo)
+      setAiUsedAi(pending.usedAi)
+      setAiChannel(pending.preferredChannel === 'email' ? 'email' : 'sms')
+    } else {
+      setAiDraft('')
+      setMissingInfo([])
+      setAiUsedAi(false)
+      setAiChannel(ticket.preferredChannel === 'email' ? 'email' : 'sms')
+    }
     setAiError(null)
     setAiSendResult(null)
   }, [
@@ -136,6 +153,7 @@ export function TicketDetailModal({
     ticket?.waitingForCustomer,
     ticket?.waitingForInternal,
     ticket?.preferredChannel,
+    pendingAiReplies,
   ])
 
   useEffect(() => {
@@ -175,6 +193,9 @@ export function TicketDetailModal({
     isActiveAttention(ticket) && Boolean(ticket.assignedTo) && ticket.assignedTo !== currentUser.id
   const canReassign = currentUser.role === 'manager' || currentUser.role === 'admin'
   const reassignOptions = tenantStaff.filter((s) => s.id !== ticket.assignedTo)
+  const pendingDraft = pendingAiReplies.find(
+    (d) => d.ticketId === ticket.id && d.status === 'pending',
+  )
 
   async function refreshAttachments() {
     if (!ticket || !staffSessionId || !currentTenantId) return
@@ -245,7 +266,12 @@ export function TicketDetailModal({
     setAiError(null)
     setAiSendResult(null)
     try {
-      const result = await sendStaffCustomerReply(ticket.id, aiDraft.trim(), aiUsedAi)
+      const pending = pendingAiReplies.find(
+        (d) => d.ticketId === ticket.id && d.status === 'pending',
+      )
+      const result = pending
+        ? await approvePendingAiReply(pending.id, aiDraft.trim())
+        : await sendStaffCustomerReply(ticket.id, aiDraft.trim(), aiUsedAi)
       setAiSendResult(
         result.status === 'sent'
           ? `Sent via ${result.channel}.`
@@ -255,6 +281,26 @@ export function TicketDetailModal({
       )
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Could not send reply.')
+    } finally {
+      setAiSendBusy(false)
+    }
+  }
+
+  async function handleDismissPending() {
+    if (!ticket) return
+    const pending = pendingAiReplies.find(
+      (d) => d.ticketId === ticket.id && d.status === 'pending',
+    )
+    if (!pending) return
+    setAiSendBusy(true)
+    setAiError(null)
+    try {
+      await dismissPendingAiReply(pending.id)
+      setAiDraft('')
+      setMissingInfo([])
+      setAiSendResult('AI draft dismissed.')
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not dismiss draft.')
     } finally {
       setAiSendBusy(false)
     }
@@ -422,20 +468,38 @@ export function TicketDetailModal({
                 <span className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
                   <Sparkles className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
                   AI customer reply
+                  {pendingDraft && (
+                    <span className="rounded-full bg-status-assigned-bg px-2 py-0.5 text-[11px] font-medium text-status-assigned-text">
+                      Pending · {Math.round(pendingDraft.confidence * 100)}%
+                    </span>
+                  )}
                 </span>
                 <p className="mt-1 text-xs text-text-tertiary">
-                  Draft → edit → approve. Sends via {aiChannel === 'email' ? 'email' : 'SMS'} only
-                  after you confirm.
+                  {pendingDraft
+                    ? 'Auto-drafted from the latest customer message. Edit, then approve — or dismiss.'
+                    : `Draft → edit → approve. Sends via ${aiChannel === 'email' ? 'email' : 'SMS'} only after you confirm.`}
                 </p>
               </div>
-              <Button
-                variant={aiDraft ? 'outline' : 'primary'}
-                size="sm"
-                disabled={aiBusy || aiSendBusy}
-                onClick={() => void handleDraftAi()}
-              >
-                {aiBusy ? 'Drafting…' : aiDraft ? 'Redraft' : 'Draft with AI'}
-              </Button>
+              <div className="flex gap-2">
+                {pendingDraft && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={aiBusy || aiSendBusy}
+                    onClick={() => void handleDismissPending()}
+                  >
+                    Dismiss
+                  </Button>
+                )}
+                <Button
+                  variant={aiDraft ? 'outline' : 'primary'}
+                  size="sm"
+                  disabled={aiBusy || aiSendBusy}
+                  onClick={() => void handleDraftAi()}
+                >
+                  {aiBusy ? 'Drafting…' : aiDraft ? 'Redraft' : 'Draft with AI'}
+                </Button>
+              </div>
             </div>
             {missingInfo.length > 0 && (
               <div className="rounded-control border border-border bg-page px-3 py-2.5">
